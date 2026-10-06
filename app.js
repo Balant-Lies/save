@@ -188,6 +188,22 @@ wraps.forEach(wrap => {
     sqC: { x: 0, y: 0, origin: "8px 0px" }   // Magenta Square
   };
 
+  // ----------------------------------------------------
+  // MOBILE HOLD DELAY
+  // ----------------------------------------------------
+  // How long a user must hold their finger on the main card before the peel activates.
+  // This allows them to scroll natively without triggering the drag!
+  const MOBILE_HOLD_DELAY = 150;
+
+  // ----------------------------------------------------
+  // CLICK-TO-VIEW AUTO DRAG DISTANCE
+  // ----------------------------------------------------
+  // When you tap/click the card, it automatically drags the peel over the View button.
+  // Increase/decrease these numbers to manually nudge how far it drags (in SVG units)!
+  // X = drag left, Y = drag up.
+  const CLICK_DRAG_X = 100;
+  const CLICK_DRAG_Y = 80;
+
   const state = {
     p1x: 60, p1y: 0,
     p2x: 60, p2y: 20,
@@ -217,7 +233,9 @@ wraps.forEach(wrap => {
   let initialPressX = 0;
   let initialPressY = 0;
   let pointerDownTime = 0;
+  let holdTimer = null;
   let isCardPress = false;
+  let canPeel = true;
 
   function updateProximity() {
     if (!isDragging) return; // ONLY allow the proximity effect when peeling!
@@ -237,6 +255,11 @@ wraps.forEach(wrap => {
 
     // PASS 1: STATE EVALUATION!
     // We evaluate logic for all buttons first to prevent 1-frame animation glitches
+
+    // Calculate the centroid of the green triangle to determine how "deep" a button is inside it!
+    const centroidX = (state.innerP1x + svgTipX + state.innerP3x) / 3;
+    const centroidY = (state.innerP1y + svgTipY + state.innerP3y) / 3;
+
     const sqData = [sqA, sqB, sqC].map(sq => {
       let sqX = 0, sqY = 0;
       if (sq === sqA) { sqX = state.p2x + offsets.sqA.x; sqY = state.p2y + offsets.sqA.y; }
@@ -256,30 +279,36 @@ wraps.forEach(wrap => {
         }
       }
 
-      // 2. Is the physical mouse touching it? (Fallback for mobile)
+      // 2. Distances for tie-breaking and proximity swells
       const rect = sq.getBoundingClientRect();
       const sqCenterX = rect.left + rect.width / 2;
       const sqCenterY = rect.top + rect.height / 2;
+
       const mouseDist = Math.hypot(currentMouseX - sqCenterX, currentMouseY - sqCenterY);
-      const isMouseTouching = mouseDist < 20;
-
-      // Distance to the green tip
       const tipDist = Math.hypot(svgTipX - sqX, svgTipY - sqY);
+      const centroidDist = Math.hypot(centroidX - sqX, centroidY - sqY); // How deep inside the green area it is
 
-      return { sq, tipDist, mouseDist, isInsideTriangle, isMouseTouching };
+      return { sq, tipDist, mouseDist, centroidDist, isInsideTriangle };
     });
 
     // Resolve Locks! (Purely Physics Based)
     lockedButton = null;
-    let candidates = sqData.filter(d => d.isInsideTriangle || d.isMouseTouching);
+
+    // ONLY buttons that are actually inside the green area are eligible to be selected!
+    let candidates = sqData.filter(d => d.isInsideTriangle);
 
     if (candidates.length > 0) {
-      // TIE-BREAKER: If multiple buttons are covered by the green triangle, 
-      // the one CLOSEST TO THE TIP (or physical mouse) wins! This makes the tip act like a cursor.
+      // If multiple buttons are covered by the green triangle:
       candidates.sort((a, b) => {
-        const distA = Math.min(a.tipDist, a.mouseDist);
-        const distB = Math.min(b.tipDist, b.mouseDist);
-        return distA - distB;
+        const diff = a.centroidDist - b.centroidDist; // Primary: Closer to the centroid wins!
+
+        // TIE-BREAKER: If they are roughly at the same depth inside the green area (within 15px of each other)
+        if (Math.abs(diff) < 15) {
+          // Use the physical mouse / touch location as the tie-breaker!
+          return a.mouseDist - b.mouseDist;
+        }
+
+        return diff;
       });
       lockedButton = candidates[0].sq;
     }
@@ -424,9 +453,34 @@ wraps.forEach(wrap => {
   function handleMouseMove(e) {
     if (!isDragging) return;
 
-    // Support both mouse and touch locations natively
-    currentMouseX = e.touches ? e.touches[0].clientX : e.clientX;
-    currentMouseY = e.touches ? e.touches[0].clientY : e.clientY;
+    // Check if it's a real browser event vs our fake GSAP cursor
+    const isRealEvent = e && e.type && e.type !== 'fake';
+    const isInstant = e && e.isInstant;
+
+    if (isRealEvent) {
+      currentMouseX = e.touches ? e.touches[0].clientX : e.clientX;
+      currentMouseY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      // If they haven't held long enough to lock the peel, check if they are trying to scroll!
+      if (!canPeel) {
+        const moveDist = Math.hypot(currentMouseX - initialPressX, currentMouseY - initialPressY);
+        if (moveDist > 10) {
+          // They moved a lot before the hold timer fired. This is a scroll! Abort the peel!
+          isDragging = false;
+          handleMouseUp({ isAbort: true });
+          return;
+        }
+        return; // Ignore tiny finger jitters while waiting for the hold timer
+      }
+
+      // If we reach here, canPeel is true (either it's the hitbox, or they held the card long enough).
+      // We block native browser scrolling so our peel is silky smooth!
+      if (e.cancelable && e.preventDefault) e.preventDefault();
+    } else {
+      // It's the fake event from GSAP or timeout
+      currentMouseX = e.clientX;
+      currentMouseY = e.clientY;
+    }
 
     // Calculate how far the mouse has been dragged diagonally.
     const rawDx = startX - currentMouseX;
@@ -466,7 +520,7 @@ wraps.forEach(wrap => {
       // The tip vertex moves freely in both directions with the cursor!
       innerP2x: Math.max(0, 60 + dragDistanceX),
       innerP2y: Math.max(0, 60 + dragDistanceY),
-      duration: 0.1,
+      duration: isInstant ? 0 : 0.1,
       overwrite: "auto",
       onUpdate: render
     });
@@ -479,11 +533,18 @@ wraps.forEach(wrap => {
     if (!isDragging) return;
     isDragging = false;
 
+    // Always clear the timer so a scroll or fast release doesn't accidentally trigger a late peel!
+    clearTimeout(holdTimer);
+
     // Clean up window listeners immediately so real mouse movements don't interfere with animations!
     window.removeEventListener('mousemove', handleMouseMove);
     window.removeEventListener('touchmove', handleMouseMove);
     window.removeEventListener('mouseup', handleMouseUp);
     window.removeEventListener('touchend', handleMouseUp);
+    window.removeEventListener('touchcancel', handleMouseUp);
+
+    const isAbort = e && e.isAbort;
+    if (isAbort) lockedButton = null;
 
     const pressDuration = Date.now() - pointerDownTime;
     const endX = e && e.changedTouches ? e.changedTouches[0].clientX : (e ? e.clientX : currentMouseX);
@@ -493,7 +554,7 @@ wraps.forEach(wrap => {
     const executeFlyaway = () => {
       // Kill any lingering animations on 'state' (like the white flap opening) so it doesn't fight the flyaway math!
       gsap.killTweensOf(state);
-      
+
       let targetPage = 'project1.html';
       if (lockedButton === sqA) targetPage = 'summary.html';
       if (lockedButton === sqB) targetPage = 'project1.html';
@@ -600,20 +661,30 @@ wraps.forEach(wrap => {
     };
 
     // 1. TAP / CLICK ON MAIN CARD DETECTED: Emulate cursor drag to view (sqB)
-    if (isCardPress && pressDuration < 250 && physicalDragDist < 10) {
+    if (isCardPress && !isAbort && pressDuration < 250 && physicalDragDist < 10) {
       isDragging = true;
-      
-      const rect = card.getBoundingClientRect();
-      const sqBRect = sqB.getBoundingClientRect();
-      
-      // We start the drag emulation precisely from the bottom-right corner
-      startX = rect.right;
-      startY = rect.bottom;
-      
-      const fakeCursor = { x: rect.right, y: rect.bottom };
-      const targetX = sqBRect.left + (sqBRect.width / 2);
-      const targetY = sqBRect.top + (sqBRect.height / 2);
-      
+
+      // Because we delayed the white flap animation to the hold timer, we must manually snap it open now
+      // so that it visually exists during the click emulation and flyaway!
+      gsap.to(state, {
+        duration: 0.35,
+        ease: customEase,
+        overwrite: "auto",
+        p1x: 0, p1y: -40, p2x: 160, p2y: 30, p3x: 104, p3y: 60,
+        p4x: 140, p4y: 110, p5x: 55, p5y: 104, p6x: 65, p6y: 150, p7x: -500, p7y: 80,
+        opacity: 1
+      });
+
+      // We simulate a drag that moves exactly CLICK_DRAG_X and CLICK_DRAG_Y SVG units diagonally.
+      // This allows you to manually nudge where the peel tip lands over the button!
+      // By using 0 as the start, and animating to negative values, we get exactly the requested distance cleanly.
+      startX = 0;
+      startY = 0;
+
+      const fakeCursor = { x: 0, y: 0 };
+      const targetX = -CLICK_DRAG_X; // Yields a precise rawDx of CLICK_DRAG_X
+      const targetY = -CLICK_DRAG_Y; // Yields a precise rawDy of CLICK_DRAG_Y
+
       gsap.to(fakeCursor, {
         x: targetX,
         y: targetY,
@@ -621,8 +692,8 @@ wraps.forEach(wrap => {
         ease: "power2.inOut",
         onUpdate: () => {
           // Feed the fake cursor directly into the native mouse move logic!
-          // This ensures proximity, physics, and sway all calculate organically.
-          handleMouseMove({ clientX: fakeCursor.x, clientY: fakeCursor.y });
+          // We pass isInstant: true so the green peel precisely follows the fake cursor without any visual drag/lag.
+          handleMouseMove({ clientX: fakeCursor.x, clientY: fakeCursor.y, type: 'fake', isInstant: true });
         },
         onComplete: () => {
           lockedButton = sqB;
@@ -685,11 +756,16 @@ wraps.forEach(wrap => {
 
     // Check if the user pressed the main card instead of the corner hitbox
     isCardPress = !e.target.closest('.hitbox');
+    const isTouch = !!e.touches;
+
+    // On PC (mouse), we can peel immediately because there is no touch-scrolling gesture to wait for!
+    // On mobile (touch), if they touch the main card, we wait 250ms to ensure they aren't trying to swipe/scroll.
+    canPeel = !isTouch || !isCardPress;
 
     // Capture initial mouse position instantly
-    currentMouseX = e.touches ? e.touches[0].clientX : e.clientX;
-    currentMouseY = e.touches ? e.touches[0].clientY : e.clientY;
-    
+    currentMouseX = isTouch ? e.touches[0].clientX : e.clientX;
+    currentMouseY = isTouch ? e.touches[0].clientY : e.clientY;
+
     initialPressX = currentMouseX;
     initialPressY = currentMouseY;
     pointerDownTime = Date.now();
@@ -697,33 +773,47 @@ wraps.forEach(wrap => {
     startX = currentMouseX;
     startY = currentMouseY;
 
+    const openWhiteFlap = () => {
+      gsap.to(state, {
+        duration,
+        ease: customEase,
+        overwrite: "auto",
+        p1x: 0, p1y: -40, p2x: 160, p2y: 30, p3x: 104, p3y: 60,
+        p4x: 140, p4y: 110, p5x: 55, p5y: 104, p6x: 65, p6y: 150, p7x: -500, p7y: 80,
+        opacity: 1,
+        onUpdate: render
+      });
+    };
+
+    // Hold timer for exactly matching the drag delta without jumping!
+    clearTimeout(holdTimer);
+    if (!canPeel) {
+      holdTimer = setTimeout(() => {
+        if (!isDragging) return;
+        canPeel = true; // Timer fired! They held it long enough. Allow peeling!
+
+        openWhiteFlap(); // Visually reveal the flap!
+
+        // Update startX/Y to the CURRENT mouse position!
+        startX = currentMouseX;
+        startY = currentMouseY;
+
+      }, MOBILE_HOLD_DELAY);
+    } else {
+      // It's PC or the hitbox! Open the flap immediately!
+      openWhiteFlap();
+    }
+
     window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchmove', handleMouseMove, { passive: true });
+    // MUST be passive: false so we can e.preventDefault() later if they peel!
+    window.addEventListener('touchmove', handleMouseMove, { passive: false });
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('touchend', handleMouseUp, { passive: true });
-
-    gsap.to(state, {
-      duration,
-      ease: customEase,
-      overwrite: "auto",
-
-      // ONLY animate the white flap! (The inner triangle and clip are handled by the mouse drag)
-      p1x: 0, p1y: -40,
-      p2x: 160, p2y: 30,
-      p3x: 104, p3y: 60,
-      p4x: 140, p4y: 110,
-      p5x: 55, p5y: 104,
-      p6x: 65, p6y: 150,
-      p7x: -500, p7y: 80,
-      opacity: 1,
-
-      onUpdate: render
-    });
+    window.addEventListener('touchcancel', handleMouseUp, { passive: true });
   }
 
   // Attach interaction to the entire card
-  // touchAction: none prevents the browser from naturally scrolling the page on mobile when they drag the card!
-  card.style.touchAction = 'none';
+  // (We removed touchAction: 'none' so the browser CAN scroll if they swipe immediately)
   card.addEventListener('mousedown', handleMouseDown);
   card.addEventListener('touchstart', handleMouseDown, { passive: true });
 });
