@@ -512,7 +512,9 @@ wraps.forEach(wrap => {
       // The tip vertex moves freely in both directions with the cursor!
       innerP2x: Math.max(0, 60 + dragDistanceX),
       innerP2y: Math.max(0, 60 + dragDistanceY),
-      duration: isInstant ? 0 : 0.1,
+      
+      // We set duration to 0 so it instantly tracks the finger 1:1 with ZERO latency!
+      duration: 0,
       overwrite: "auto",
       onUpdate: render
     });
