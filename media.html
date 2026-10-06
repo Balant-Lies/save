@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Media</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+      color: #333;
+    }
+
+    .container {
+      background: white;
+      padding: 3rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    h1 {
+      margin-top: 0;
+      color: #1A885C;
+    }
+
+    a {
+      display: inline-block;
+      margin-top: 1.5rem;
+      padding: 0.75rem 1.5rem;
+      background-color: #1A885C;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: bold;
+      transition: background-color 0.2s;
+    }
+
+    a:hover {
+      background-color: #136a46;
+    }
+
+    :root {
+      /* Animation Controls - Tweak these! */
+      --fade-duration: 0.4s;
+
+      /* 
+         Curve Options:
+         - "ease-out" (starts fast, slows down)
+         - "ease-in" (starts slow, speeds up)
+         - "linear" (constant speed)
+         - "cubic-bezier(0.1, 1, 0.1, 1)" (heavy snap/explosive start)
+         - "cubic-bezier(0.8, 0, 0.2, 1)" (smooth cinematic glide)
+      */
+      --fade-curve: cubic-bezier(0.1, 1, 0.1, 1);
+    }
+
+    /* ENTRY ANIMATION */
+    body {
+      opacity: 0;
+      animation: fadeIn var(--fade-duration) var(--fade-curve) forwards;
+    }
+
+    @keyframes fadeIn {
+      to {
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Media</h1>
+    <p>You have successfully opened the Media page!</p>
+    <a href="index.html">Go Back to Cards</a>
+  </div>
+</body>
+
+</html>
