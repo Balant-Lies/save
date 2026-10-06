@@ -214,6 +214,10 @@ wraps.forEach(wrap => {
   let startX = 0;
   let startY = 0;
   let lockedButton = null;
+  let initialPressX = 0;
+  let initialPressY = 0;
+  let pointerDownTime = 0;
+  let isCardPress = false;
 
   function updateProximity() {
     if (!isDragging) return; // ONLY allow the proximity effect when peeling!
@@ -471,12 +475,25 @@ wraps.forEach(wrap => {
   }
 
   // THE RELEASE LOGIC
-  function handleMouseUp() {
+  function handleMouseUp(e) {
     if (!isDragging) return;
     isDragging = false;
 
-    // Execute transition if a button was locked!
-    if (lockedButton) {
+    // Clean up window listeners immediately so real mouse movements don't interfere with animations!
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('touchmove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
+    window.removeEventListener('touchend', handleMouseUp);
+
+    const pressDuration = Date.now() - pointerDownTime;
+    const endX = e && e.changedTouches ? e.changedTouches[0].clientX : (e ? e.clientX : currentMouseX);
+    const endY = e && e.changedTouches ? e.changedTouches[0].clientY : (e ? e.clientY : currentMouseY);
+    const physicalDragDist = Math.hypot(endX - initialPressX, endY - initialPressY);
+
+    const executeFlyaway = () => {
+      // Kill any lingering animations on 'state' (like the white flap opening) so it doesn't fight the flyaway math!
+      gsap.killTweensOf(state);
+      
       let targetPage = 'project1.html';
       if (lockedButton === sqA) targetPage = 'summary.html';
       if (lockedButton === sqB) targetPage = 'project1.html';
@@ -506,8 +523,6 @@ wraps.forEach(wrap => {
       const normY = dirY / mag;
 
       // Capture the exact starting position of the dynamic clip and inner triangle!
-      // This ensures absolutely zero jumping when the animation takes over, preserving 
-      // the exact state (including sway and mobile multipliers) from the final frame!
       const releaseBases = {
         clipX: state.clipX,
         clipY: state.clipY,
@@ -518,7 +533,6 @@ wraps.forEach(wrap => {
       };
 
       // Capture the EXACT position of the white flap at the moment of release!
-      // This guarantees it will not jump or teleport when the transition starts!
       const flapBases = {
         p1x: state.p1x, p1y: state.p1y,
         p2x: state.p2x, p2y: state.p2y,
@@ -530,8 +544,6 @@ wraps.forEach(wrap => {
       };
 
       // We animate a proxy value representing the "continuous pull distance"
-      // We also animate a blend factor to smoothly curve the trajectory toward the top-left (1,1)
-      // so that it ALWAYS cleanly completes the clipping peel off the screen, regardless of which button was selected!
       const proxy = { dist: 0, blend: 0 };
       gsap.to(proxy, {
         dist: 1200, // Pull it 1200 pixels away!
@@ -539,12 +551,10 @@ wraps.forEach(wrap => {
         duration: 0.6,
         ease: "power2.in",
         onUpdate: () => {
-          // Target vector to cleanly finish peeling off the top-left corner
           const targetNormX = 1;
           const targetNormY = 1;
           const targetMag = Math.hypot(targetNormX, targetNormY);
 
-          // Interpolate the direction vector as we fly away!
           const curX = normX * (1 - proxy.blend) + (targetNormX / targetMag) * proxy.blend;
           const curY = normY * (1 - proxy.blend) + (targetNormY / targetMag) * proxy.blend;
           const curMag = Math.hypot(curX, curY);
@@ -554,7 +564,6 @@ wraps.forEach(wrap => {
           const extraX = proxy.dist * curvedNormX;
           const extraY = proxy.dist * curvedNormY;
 
-          // Sync all dynamic elements to fly off in the curved direction starting EXACTLY from their last known position!
           state.clipX = releaseBases.clipX + extraX;
           state.clipY = releaseBases.clipY + extraY;
 
@@ -562,29 +571,21 @@ wraps.forEach(wrap => {
           state.innerP3x = 0; state.innerP3y = releaseBases.innerP3y + extraY;
           state.innerP2x = releaseBases.innerP2x + extraX; state.innerP2y = releaseBases.innerP2y + extraY;
 
-          // Animate the white flap linearly from its EXACT current position, along the curve!
-          // No multipliers, so the flap stays perfectly solid and maintains its shape as it flies!
           const dx = proxy.dist * curvedNormX;
           const dy = proxy.dist * curvedNormY;
 
           state.p1x = flapBases.p1x + dx;
           state.p1y = flapBases.p1y + dy;
-
           state.p2x = flapBases.p2x + dx;
           state.p2y = flapBases.p2y + dy;
-
           state.p3x = flapBases.p3x + dx;
           state.p3y = flapBases.p3y + dy;
-
           state.p4x = flapBases.p4x + dx;
           state.p4y = flapBases.p4y + dy;
-
           state.p5x = flapBases.p5x + dx;
           state.p5y = flapBases.p5y + dy;
-
           state.p6x = flapBases.p6x + dx;
           state.p6y = flapBases.p6y + dy;
-
           state.p7x = flapBases.p7x + dx;
           state.p7y = flapBases.p7y + dy;
 
@@ -595,20 +596,52 @@ wraps.forEach(wrap => {
         }
       });
 
-      // Fade the entire wrap slightly at the very end so that if the mathematical polygon
-      // inverts outside the SVG bounds, we don't see any visual glitch!
       gsap.to(activeWrap, { opacity: 0, duration: 0.3, delay: 0.3, ease: "power2.in" });
+    };
 
-      // The OTHER cards are left completely alone, exactly as requested!
-
-      return; // Skip the snap-back animation entirely!
+    // 1. TAP / CLICK ON MAIN CARD DETECTED: Emulate cursor drag to view (sqB)
+    if (isCardPress && pressDuration < 250 && physicalDragDist < 10) {
+      isDragging = true;
+      
+      const rect = card.getBoundingClientRect();
+      const sqBRect = sqB.getBoundingClientRect();
+      
+      // We start the drag emulation precisely from the bottom-right corner
+      startX = rect.right;
+      startY = rect.bottom;
+      
+      const fakeCursor = { x: rect.right, y: rect.bottom };
+      const targetX = sqBRect.left + (sqBRect.width / 2);
+      const targetY = sqBRect.top + (sqBRect.height / 2);
+      
+      gsap.to(fakeCursor, {
+        x: targetX,
+        y: targetY,
+        duration: 0.35,
+        ease: "power2.inOut",
+        onUpdate: () => {
+          // Feed the fake cursor directly into the native mouse move logic!
+          // This ensures proximity, physics, and sway all calculate organically.
+          handleMouseMove({ clientX: fakeCursor.x, clientY: fakeCursor.y });
+        },
+        onComplete: () => {
+          lockedButton = sqB;
+          executeFlyaway();
+        }
+      });
+      return;
     }
 
-    // Clean up window listeners
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('touchmove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
-    window.removeEventListener('touchend', handleMouseUp);
+    // 2. EXCESSIVE DRAG DETECTED: Default to view (sqB) if dragged heavily but missed buttons
+    if (!lockedButton && (state.innerP2x > 140 || state.innerP2y > 140)) {
+      lockedButton = sqB;
+    }
+
+    // Execute transition if a button was locked!
+    if (lockedButton) {
+      executeFlyaway();
+      return; // Skip the snap-back animation entirely!
+    }
 
     // Reset square scales
     gsap.to([sqA, sqB, sqC], { scale: 1, duration: 0.3, overwrite: "auto" });
@@ -650,9 +683,17 @@ wraps.forEach(wrap => {
     isDragging = true;
     lockedButton = null; // Reset selection lock on new press
 
+    // Check if the user pressed the main card instead of the corner hitbox
+    isCardPress = !e.target.closest('.hitbox');
+
     // Capture initial mouse position instantly
     currentMouseX = e.touches ? e.touches[0].clientX : e.clientX;
     currentMouseY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    initialPressX = currentMouseX;
+    initialPressY = currentMouseY;
+    pointerDownTime = Date.now();
+
     startX = currentMouseX;
     startY = currentMouseY;
 
@@ -680,7 +721,9 @@ wraps.forEach(wrap => {
     });
   }
 
-  // Only the initial press is attached to the hitbox itself
-  hitbox.addEventListener('mousedown', handleMouseDown);
-  hitbox.addEventListener('touchstart', handleMouseDown, { passive: true });
+  // Attach interaction to the entire card
+  // touchAction: none prevents the browser from naturally scrolling the page on mobile when they drag the card!
+  card.style.touchAction = 'none';
+  card.addEventListener('mousedown', handleMouseDown);
+  card.addEventListener('touchstart', handleMouseDown, { passive: true });
 });
