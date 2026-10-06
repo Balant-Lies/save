@@ -213,34 +213,95 @@ wraps.forEach(wrap => {
   let currentMouseY = 0;
   let startX = 0;
   let startY = 0;
+  let lockedButton = null;
 
   function updateProximity() {
     if (!isDragging) return; // ONLY allow the proximity effect when peeling!
 
-    [sqA, sqB, sqC].forEach(sq => {
-      // Calculate real screen coordinates dynamically
+    // Calculate tip coordinates exactly in the shared SVG space!
+    const svgTipX = state.innerP2x;
+    const svgTipY = state.innerP2y;
+
+    // Helper function for strict Point-in-Triangle mathematical bounding!
+    function isPointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
+      const area = 0.5 * (-by * cx + ay * (-bx + cx) + ax * (by - cy) + bx * cy);
+      if (Math.abs(area) < 0.1) return false;
+      const s = 1 / (2 * area) * (ay * cx - ax * cy + (cy - ay) * px + (ax - cx) * py);
+      const t = 1 / (2 * area) * (ax * by - ay * bx + (ay - by) * px + (bx - ax) * py);
+      return s >= -0.05 && t >= -0.05 && 1 - s - t >= -0.05; // 5% tolerance margin
+    }
+
+    // PASS 1: STATE EVALUATION!
+    // We evaluate logic for all buttons first to prevent 1-frame animation glitches
+    const sqData = [sqA, sqB, sqC].map(sq => {
+      let sqX = 0, sqY = 0;
+      if (sq === sqA) { sqX = state.p2x + offsets.sqA.x; sqY = state.p2y + offsets.sqA.y; }
+      if (sq === sqB) { sqX = state.p4x + offsets.sqB.x; sqY = state.p4y + offsets.sqB.y; }
+      if (sq === sqC) { sqX = state.p6x + offsets.sqC.x; sqY = state.p6y + offsets.sqC.y; }
+
+      // 1. Is the button inside the green triangle?
+      let isInsideTriangle = false;
+      // We check the center and a small radius around the button to see if the triangle covers it
+      const r = 10;
+      const pts = [
+        { x: sqX, y: sqY }, { x: sqX - r, y: sqY }, { x: sqX + r, y: sqY }, { x: sqX, y: sqY - r }, { x: sqX, y: sqY + r }
+      ];
+      for (let pt of pts) {
+        if (isPointInTriangle(pt.x, pt.y, state.innerP1x, state.innerP1y, svgTipX, svgTipY, state.innerP3x, state.innerP3y)) {
+          isInsideTriangle = true; break;
+        }
+      }
+
+      // 2. Is the physical mouse touching it? (Fallback for mobile)
       const rect = sq.getBoundingClientRect();
       const sqCenterX = rect.left + rect.width / 2;
       const sqCenterY = rect.top + rect.height / 2;
+      const mouseDist = Math.hypot(currentMouseX - sqCenterX, currentMouseY - sqCenterY);
+      const isMouseTouching = mouseDist < 20;
 
-      const dist = Math.hypot(currentMouseX - sqCenterX, currentMouseY - sqCenterY);
-      const maxDist = 90;
+      // Distance to the green tip
+      const tipDist = Math.hypot(svgTipX - sqX, svgTipY - sqY);
 
+      return { sq, tipDist, mouseDist, isInsideTriangle, isMouseTouching };
+    });
+
+    // Resolve Locks! (Purely Physics Based)
+    lockedButton = null;
+    let candidates = sqData.filter(d => d.isInsideTriangle || d.isMouseTouching);
+
+    if (candidates.length > 0) {
+      // TIE-BREAKER: If multiple buttons are covered by the green triangle, 
+      // the one CLOSEST TO THE TIP (or physical mouse) wins! This makes the tip act like a cursor.
+      candidates.sort((a, b) => {
+        const distA = Math.min(a.tipDist, a.mouseDist);
+        const distB = Math.min(b.tipDist, b.mouseDist);
+        return distA - distB;
+      });
+      lockedButton = candidates[0].sq;
+    }
+
+    // PASS 2: VISUAL ANIMATION!
+    sqData.forEach(data => {
+      const { sq, tipDist, mouseDist } = data;
+
+      // Determine visual state
       let scaleTarget = 1;
       let eyeOpacity = 0;
-
       let sqFill = "white"; // Initial white color for ALL buttons
 
-      if (dist < maxDist) {
-        // Grow up to 3x (1 + 2) based on your custom modifier
-        scaleTarget = 1 + (1 - dist / maxDist) * 3;
-        // Trigger a full fade-in the moment the mouse enters the radius!
+      if (lockedButton === sq) {
+        // Stay fully highlighted and green as long as it's locked!
+        scaleTarget = 4; // Max lock scale
         eyeOpacity = 1;
-
-        // ONLY change color if the mouse is physically over the button's dynamic radius!
-        const isPhysicallyHovered = dist < (rect.width / 2);
-        if (isPhysicallyHovered) {
-          sqFill = "#1A885C";
+        sqFill = "#1A885C";
+      } else if (!lockedButton) {
+        // If NO button is locked yet, do a subtle proximity swell effect (based on nearest actor)
+        const maxDist = 50;
+        if (tipDist < maxDist || mouseDist < maxDist) {
+          const effectiveDist = Math.min(tipDist, mouseDist);
+          // Subtle pop up to 2x max before it actually locks
+          scaleTarget = 1 + (1 - effectiveDist / maxDist) * 1.0;
+          eyeOpacity = 1;
         }
       }
 
@@ -258,10 +319,9 @@ wraps.forEach(wrap => {
         let eyeLidColor = "black";
         let eyePupilColor = "white";
 
-        const isPhysicallyHovered = dist < (rect.width / 2);
-        if (isPhysicallyHovered) {
-          eyeLidColor = "white";       // Eye turns white ONLY on physical hover
-          eyePupilColor = "#1A885C";   // Pupil turns green ONLY on physical hover
+        if (lockedButton === sq) {
+          eyeLidColor = "white";
+          eyePupilColor = "#1A885C";
         }
 
         gsap.to(eye, { opacity: eyeOpacity, duration: 0.15, overwrite: "auto" });
@@ -365,10 +425,20 @@ wraps.forEach(wrap => {
     currentMouseY = e.touches ? e.touches[0].clientY : e.clientY;
 
     // Calculate how far the mouse has been dragged diagonally.
+    const rawDx = startX - currentMouseX;
+    const rawDy = startY - currentMouseY;
+
+    // Mobile thumb-obscurity fix: Multiply the physical drag distance on touch devices 
+    // so the green peel stays visually ahead of the user's thumb!
+    // We only multiply positive (forward) drag so pushing backward remains 1:1.
+    const dragMultiplier = e.touches ? 1.6 : 1.0;
+    const computedDx = rawDx > 0 ? rawDx * dragMultiplier : rawDx;
+    const computedDy = rawDy > 0 ? rawDy * dragMultiplier : rawDy;
+
     // We allow negative drag so you can push the peel backward, but we clamp it 
     // exactly at the unpeeled bounds (-60, -56) so it can't go outside the card!
-    const dragDistanceX = Math.max(-cardProps.clipX, startX - currentMouseX);
-    const dragDistanceY = Math.max(-cardProps.clipY, startY - currentMouseY);
+    const dragDistanceX = Math.max(-cardProps.clipX, computedDx);
+    const dragDistanceY = Math.max(-cardProps.clipY, computedDy);
 
     // Calculate a dynamic organic "sway" using sine waves so the base points wobble as you drag!
     // This breaks the rigid 90-deg angle at the tip dynamically!
@@ -405,27 +475,13 @@ wraps.forEach(wrap => {
     if (!isDragging) return;
     isDragging = false;
 
-    // Check if the peeled tip was dropped ON ANY button!
-    let selectedButton = null;
-    let targetPage = 'project1.html'; // Default
+    // Execute transition if a button was locked!
+    if (lockedButton) {
+      let targetPage = 'project1.html';
+      if (lockedButton === sqA) targetPage = 'summary.html';
+      if (lockedButton === sqB) targetPage = 'project1.html';
+      if (lockedButton === sqC) targetPage = 'media.html';
 
-    [sqA, sqB, sqC].forEach(sq => {
-      if (!sq) return;
-      const rect = sq.getBoundingClientRect();
-      const sqCenterX = rect.left + rect.width / 2;
-      const sqCenterY = rect.top + rect.height / 2;
-      const dist = Math.hypot(currentMouseX - sqCenterX, currentMouseY - sqCenterY);
-
-      // If released while touching the button, mark it as selected!
-      if (dist < (rect.width / 2)) {
-        selectedButton = sq;
-        if (sq === sqA) targetPage = 'summary.html';
-        if (sq === sqB) targetPage = 'project1.html';
-        if (sq === sqC) targetPage = 'media.html';
-      }
-    });
-
-    if (selectedButton) {
       // Lock interactions
       document.body.style.pointerEvents = 'none';
 
@@ -449,8 +505,17 @@ wraps.forEach(wrap => {
       const normX = dirX / mag;
       const normY = dirY / mag;
 
-      const baseDragX = startX - currentMouseX;
-      const baseDragY = startY - currentMouseY;
+      // Capture the exact starting position of the dynamic clip and inner triangle!
+      // This ensures absolutely zero jumping when the animation takes over, preserving 
+      // the exact state (including sway and mobile multipliers) from the final frame!
+      const releaseBases = {
+        clipX: state.clipX,
+        clipY: state.clipY,
+        innerP1x: state.innerP1x,
+        innerP3y: state.innerP3y,
+        innerP2x: state.innerP2x,
+        innerP2y: state.innerP2y,
+      };
 
       // Capture the EXACT position of the white flap at the moment of release!
       // This guarantees it will not jump or teleport when the transition starts!
@@ -486,16 +551,16 @@ wraps.forEach(wrap => {
           const curvedNormX = curX / curMag;
           const curvedNormY = curY / curMag;
 
-          const extraX = baseDragX + proxy.dist * curvedNormX;
-          const extraY = baseDragY + proxy.dist * curvedNormY;
+          const extraX = proxy.dist * curvedNormX;
+          const extraY = proxy.dist * curvedNormY;
 
-          // Sync all dynamic elements to fly off in the curved direction!
-          state.clipX = cardProps.clipX + extraX;
-          state.clipY = cardProps.clipY + extraY;
+          // Sync all dynamic elements to fly off in the curved direction starting EXACTLY from their last known position!
+          state.clipX = releaseBases.clipX + extraX;
+          state.clipY = releaseBases.clipY + extraY;
 
-          state.innerP1x = 60 + extraX; state.innerP1y = 0;
-          state.innerP3x = 0; state.innerP3y = 60 + extraY;
-          state.innerP2x = 60 + extraX; state.innerP2y = 60 + extraY;
+          state.innerP1x = releaseBases.innerP1x + extraX; state.innerP1y = 0;
+          state.innerP3x = 0; state.innerP3y = releaseBases.innerP3y + extraY;
+          state.innerP2x = releaseBases.innerP2x + extraX; state.innerP2y = releaseBases.innerP2y + extraY;
 
           // Animate the white flap linearly from its EXACT current position, along the curve!
           // No multipliers, so the flap stays perfectly solid and maintains its shape as it flies!
@@ -583,6 +648,7 @@ wraps.forEach(wrap => {
   function handleMouseDown(e) {
     if (isDragging) return; // Prevent double firing
     isDragging = true;
+    lockedButton = null; // Reset selection lock on new press
 
     // Capture initial mouse position instantly
     currentMouseX = e.touches ? e.touches[0].clientX : e.clientX;
