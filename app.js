@@ -267,17 +267,8 @@ wraps.forEach(wrap => {
       if (sq === sqC) { sqX = state.p6x + offsets.sqC.x; sqY = state.p6y + offsets.sqC.y; }
 
       // 1. Is the button inside the green triangle?
-      let isInsideTriangle = false;
-      // We check the center and a small radius around the button to see if the triangle covers it
-      const r = 10;
-      const pts = [
-        { x: sqX, y: sqY }, { x: sqX - r, y: sqY }, { x: sqX + r, y: sqY }, { x: sqX, y: sqY - r }, { x: sqX, y: sqY + r }
-      ];
-      for (let pt of pts) {
-        if (isPointInTriangle(pt.x, pt.y, state.innerP1x, state.innerP1y, svgTipX, svgTipY, state.innerP3x, state.innerP3y)) {
-          isInsideTriangle = true; break;
-        }
-      }
+      // We strictly check the exact center of the button to prevent finicky selections!
+      let isInsideTriangle = isPointInTriangle(sqX, sqY, state.innerP1x, state.innerP1y, svgTipX, svgTipY, state.innerP3x, state.innerP3y);
 
       // 2. Distances for tie-breaking and proximity swells
       const rect = sq.getBoundingClientRect();
@@ -304,8 +295,9 @@ wraps.forEach(wrap => {
 
         // TIE-BREAKER: If they are roughly at the same depth inside the green area (within 15px of each other)
         if (Math.abs(diff) < 15) {
-          // Use the physical mouse / touch location as the tie-breaker!
-          return a.mouseDist - b.mouseDist;
+          // If the View button (sqB) is tied, it always wins!
+          if (a.sq === sqB) return -1;
+          if (b.sq === sqB) return 1;
         }
 
         return diff;
