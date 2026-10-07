@@ -1,4 +1,13 @@
 // ----------------------------------------------------
+// LINE MODES
+// 0: Current setup (Wobbly outlines everywhere)
+// 1: Normal straight lines (No wobble)
+// 3: No outlines (Fills only, no strokes)
+// 4: Outlines only on the outside card and buttons (Inner peel has no outlines)
+// ----------------------------------------------------
+const LINE_MODE = 4;
+
+// ----------------------------------------------------
 // EYE CONTROLS
 // ----------------------------------------------------
 // By using width/height, we strictly lock the eye's bounding box so it doesn't break GSAP's square scaling!
@@ -66,8 +75,19 @@ const sqProps = {
 
 // A generic function that takes ANY array of corner coordinates
 // and generates a mathematical wobbly path between them!
-function generateWobblyPolygon(corners, freq, amp, segmentLen, seedOffset = 0) {
+function generateWobblyPolygon(corners, freq, amp, segmentLen, seedOffset = 0, forceStraight = false) {
   let d = "";
+
+  // Mode 1: Normal straight lines
+  if (LINE_MODE === 1 || forceStraight) {
+    for (let i = 0; i < corners.length; i++) {
+      if (i === 0) d += `M ${corners[i].x.toFixed(1)},${corners[i].y.toFixed(1)} `;
+      else d += `L ${corners[i].x.toFixed(1)},${corners[i].y.toFixed(1)} `;
+    }
+    d += "Z";
+    return d;
+  }
+
   let noiseOffset = seedOffset;
 
   for (let i = 0; i < corners.length; i++) {
@@ -189,6 +209,19 @@ wraps.forEach(wrap => {
   pathC.setAttribute('d', dSqC);
   pathC.setAttribute('stroke-width', sqProps.sqC.strokeWidth);
   pathC.setAttribute('fill', 'var(--btn-default)');
+
+  // Apply LINE_MODE stroke settings
+  if (LINE_MODE === 3) {
+    bgPath.setAttribute('stroke-width', '0');
+    innerPath.setAttribute('stroke-width', '0');
+    path.setAttribute('stroke-width', '0');
+    pathA.setAttribute('stroke-width', '0');
+    pathB.setAttribute('stroke-width', '0');
+    pathC.setAttribute('stroke-width', '0');
+  } else if (LINE_MODE === 4) {
+    innerPath.setAttribute('stroke-width', '0');
+    path.setAttribute('stroke-width', '0');
+  }
 
   // ----------------------------------------------------
   // OFFSET CONTROLS: Change these x/y values to pull the 
@@ -425,7 +458,8 @@ wraps.forEach(wrap => {
       { x: state.p7x, y: state.p7y },
     ];
     // Re-calculate the wobbly path for the triangle on every frame as it animates!
-    const dTri = generateWobblyPolygon(triCorners, cardProps.freq, cardProps.amp * 1.5, cardProps.smoothness, 100);
+    const isFlapStraight = LINE_MODE === 4; // Mode 4 flattens the peel polygons!
+    const dTri = generateWobblyPolygon(triCorners, cardProps.freq, cardProps.amp * 1.5, cardProps.smoothness, 100, isFlapStraight);
     path.setAttribute('d', dTri);
 
     // DRAW THE INDEPENDENT INNER 3-POINT PEEL TRIANGLE
@@ -437,7 +471,7 @@ wraps.forEach(wrap => {
         { x: state.innerP3x + innerTriProps.p3Offset.x, y: state.innerP3y + innerTriProps.p3Offset.y }
       ];
       // Generate its own mathematical wobble
-      const dInner = generateWobblyPolygon(innerCorners, innerTriProps.freq, innerTriProps.amp, innerTriProps.smoothness, 101);
+      const dInner = generateWobblyPolygon(innerCorners, innerTriProps.freq, innerTriProps.amp, innerTriProps.smoothness, 101, isFlapStraight);
       innerPath.setAttribute('d', dInner);
     }
 
@@ -495,7 +529,7 @@ wraps.forEach(wrap => {
     // Mobile thumb-obscurity fix: Multiply the physical drag distance on touch devices 
     // so the green peel stays visually ahead of the user's thumb!
     // We only multiply positive (forward) drag so pushing backward remains 1:1.
-    const dragMultiplier = e.touches ? 1.4 : 1.0;
+    const dragMultiplier = e.touches ? 1.6 : 1.0;
     const computedDx = rawDx > 0 ? rawDx * dragMultiplier : rawDx;
     const computedDy = rawDy > 0 ? rawDy * dragMultiplier : rawDy;
 
