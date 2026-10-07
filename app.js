@@ -5,7 +5,7 @@
 // 3: No outlines (Fills only, no strokes)
 // 4: Outlines only on the outside card and buttons (Inner peel has no outlines)
 // ----------------------------------------------------
-const LINE_MODE = 4;
+const LINE_MODE = 3;
 
 // ----------------------------------------------------
 // EYE CONTROLS
