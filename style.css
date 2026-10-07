@@ -22,7 +22,7 @@ body {
 }
 
 .inner-rect {
-  background-color: #0c0c0c;
+  background-color: var(--card-bg, #0c0c0c);
   width: 100%;
   height: 100%;
 }
@@ -36,7 +36,7 @@ body {
   z-index: 10;
   cursor: pointer;
   touch-action: none;
-  background-color: rgba(0, 255, 0, 0.3);
+  background-color: rgba(0, 255, 0, 0);
   transform: rotate(180deg);
   clip-path: polygon(100% 0%, 100% 33%, 100% 66%, 100% 100%, 66% 100%, 33% 100%, 0% 100%);
 }
@@ -55,6 +55,16 @@ body {
 
 .wrap {
   position: relative;
+  /* THEME VARIABLES: Change these per-card to easily theme them! */
+  --card-bg: #0c0c0c;        /* Background inside the card */
+  --card-flap: #ffffff;      /* The white peeled back paper */
+  --card-peel: #1A885C;      /* The green underside of the peel */
+  
+  --btn-default: #ffffff;    /* Default icon color */
+  --btn-active: #1A885C;     /* Highlighted icon color */
+  
+  --eye-lid: #ffffff;        /* Eyelid color when selected */
+  --eye-pupil: #1A885C;      /* Eye pupil color when selected */
 }
 
 .card-bg-svg {
@@ -66,8 +76,25 @@ body {
 }
 
 .triangle-path {
-  fill: #ffffff;
+  fill: var(--card-flap, #ffffff);
+  stroke: var(--card-flap, #ffffff);
   /* Geometry and animation are now handled cleanly by HTML and GSAP */
+}
+
+.inner-triangle-path {
+  fill: var(--card-peel, #1A885C);
+  stroke: black;
+}
+
+
+/* Disable the native bloating focus ring */
+g:focus {
+  outline: none;
+}
+
+/* Reveal our custom non-scaling SVG focus ring instead! */
+g:focus .custom-focus {
+  opacity: 1;
 }
 
 .grid {

@@ -6,8 +6,8 @@ const eyeProps = {
   width: 10,        // Width of the eye inside the square (made it smaller than the square!)
   height: 5.8,      // Height of the eye (maintaining Figma's 67x39 ratio)
   x: -5,            // X position (half of width to center it)
-  y: -2.9,          // Y position (half of height to center it)
-  rotation: 160     // Rotation in degrees
+  y: -3,          // Y position (half of height to center it)
+  rotation: 135     // Rotation in degrees
 };
 
 // ----------------------------------------------------
@@ -30,9 +30,9 @@ const cardProps = {
 // ----------------------------------------------------
 const innerTriProps = {
   // Offsets from the main flap's Top, Bottom-Right, and Bottom-Left corners!
-  p1Offset: { x: -4, y: 3 },   // Top corner offset
-  p2Offset: { x: -2, y: -3 },  // Bottom-Right corner offset
-  p3Offset: { x: 2, y: -3 },  // Bottom-Left corner offset
+  p1Offset: { x: -2, y: 2 },   // Top corner offset
+  p2Offset: { x: -2, y: -2 },  // Bottom-Right corner offset
+  p3Offset: { x: 2, y: -2 },  // Bottom-Left corner offset
 
   // Physics controls (matches card by default)
   freq: 0.15,
@@ -41,13 +41,27 @@ const innerTriProps = {
 };
 
 // ----------------------------------------------------
+// FLAP OPEN CONTROLS
+// The exact coordinates the white flap animates to when opened.
+// ----------------------------------------------------
+const flapOpenState = {
+  p1x: 0, p1y: -40,
+  p2x: 160, p2y: 40,
+  p3x: 104, p3y: 60,
+  p4x: 140, p4y: 110,
+  p5x: 55, p5y: 104,
+  p6x: 65, p6y: 150,
+  p7x: -500, p7y: 80
+};
+
+// ----------------------------------------------------
 // SQUARE (BOX) CONTROLS
 // Controls the geometry, wobbly strokes, and thickness of the boxes
 // ----------------------------------------------------
 const sqProps = {
-  sqA: { color: "white", strokeWidth: 0.5, freq: 0.25, amp: 0.7, smoothness: 1.5 },
-  sqB: { color: "white", strokeWidth: 0.5, freq: 0.25, amp: 0.7, smoothness: 1.5 },
-  sqC: { color: "white", strokeWidth: 0.5, freq: 0.25, amp: 0.7, smoothness: 1.5 }
+  sqA: { strokeWidth: 0.5, freq: 0.25, amp: 0.7, smoothness: 1.5 },
+  sqB: { strokeWidth: 0.5, freq: 0.25, amp: 0.7, smoothness: 1.5 },
+  sqC: { strokeWidth: 0.5, freq: 0.25, amp: 0.7, smoothness: 1.5 }
 };
 
 // A generic function that takes ANY array of corner coordinates
@@ -164,17 +178,17 @@ wraps.forEach(wrap => {
   const pathA = sqA.querySelector('path');
   pathA.setAttribute('d', dSqA);
   pathA.setAttribute('stroke-width', sqProps.sqA.strokeWidth);
-  pathA.setAttribute('fill', sqProps.sqA.color);
+  pathA.setAttribute('fill', 'var(--btn-default)');
 
   const pathB = sqB.querySelector('path');
   pathB.setAttribute('d', dSqB);
   pathB.setAttribute('stroke-width', sqProps.sqB.strokeWidth);
-  pathB.setAttribute('fill', sqProps.sqB.color);
+  pathB.setAttribute('fill', 'var(--btn-default)');
 
   const pathC = sqC.querySelector('path');
   pathC.setAttribute('d', dSqC);
   pathC.setAttribute('stroke-width', sqProps.sqC.strokeWidth);
-  pathC.setAttribute('fill', sqProps.sqC.color);
+  pathC.setAttribute('fill', 'var(--btn-default)');
 
   // ----------------------------------------------------
   // OFFSET CONTROLS: Change these x/y values to pull the 
@@ -183,9 +197,9 @@ wraps.forEach(wrap => {
   // "0px 0px" = Exact Center. (Note: Because the SVG is rotated 180deg, "8px 8px" is visually the Top-Left corner!)
   // ----------------------------------------------------
   const offsets = {
-    sqA: { x: 0, y: 0, origin: "0px 8px" },   // Blue Square
-    sqB: { x: 0, y: 0, origin: "4px 4px" },   // Lime Square
-    sqC: { x: 0, y: 0, origin: "8px 0px" }   // Magenta Square
+    sqA: { x: 0, y: 0, rotation: -10, origin: "0px 8px" },   // Blue Square
+    sqB: { x: 0, y: 0, rotation: 25, origin: "6px 8px" },   // Lime Square
+    sqC: { x: 0, y: 0, rotation: 35, origin: "6px 6px" }   // Magenta Square
   };
 
   // ----------------------------------------------------
@@ -312,13 +326,13 @@ wraps.forEach(wrap => {
       // Determine visual state
       let scaleTarget = 1;
       let eyeOpacity = 0;
-      let sqFill = "white"; // Initial white color for ALL buttons
+      let sqFill = "var(--btn-default)"; // Initial default color for ALL buttons
 
       if (lockedButton === sq) {
         // Stay fully highlighted and green as long as it's locked!
         scaleTarget = 4; // Max lock scale
         eyeOpacity = 1;
-        sqFill = "#1A885C";
+        sqFill = "var(--btn-active)";
       } else if (!lockedButton) {
         // If NO button is locked yet, do a subtle proximity swell effect (based on nearest actor)
         const maxDist = 50;
@@ -341,12 +355,12 @@ wraps.forEach(wrap => {
       // Animate eye opacity and colors if this square has an eye inside it!
       const eye = sq.querySelector('.eye-wrapper');
       if (eye) {
-        let eyeLidColor = "black";
-        let eyePupilColor = "white";
+        let eyeLidColor = "var(--btn-default)";
+        let eyePupilColor = "var(--btn-default)";
 
         if (lockedButton === sq) {
-          eyeLidColor = "white";
-          eyePupilColor = "#1A885C";
+          eyeLidColor = "var(--eye-lid)";
+          eyePupilColor = "var(--eye-pupil)";
         }
 
         gsap.to(eye, { opacity: eyeOpacity, duration: 0.15, overwrite: "auto" });
@@ -428,9 +442,9 @@ wraps.forEach(wrap => {
     }
 
     // Physically lock the squares to the vertices plus their custom offsets!
-    gsap.set(sqA, { x: state.p2x + offsets.sqA.x, y: state.p2y + offsets.sqA.y, opacity: state.opacity, transformOrigin: offsets.sqA.origin });
-    gsap.set(sqB, { x: state.p4x + offsets.sqB.x, y: state.p4y + offsets.sqB.y, opacity: state.opacity, transformOrigin: offsets.sqB.origin });
-    gsap.set(sqC, { x: state.p6x + offsets.sqC.x, y: state.p6y + offsets.sqC.y, opacity: state.opacity, transformOrigin: offsets.sqC.origin });
+    gsap.set(sqA, { x: state.p2x + offsets.sqA.x, y: state.p2y + offsets.sqA.y, rotation: offsets.sqA.rotation, opacity: state.opacity, transformOrigin: offsets.sqA.origin });
+    gsap.set(sqB, { x: state.p4x + offsets.sqB.x, y: state.p4y + offsets.sqB.y, rotation: offsets.sqB.rotation, opacity: state.opacity, transformOrigin: offsets.sqB.origin });
+    gsap.set(sqC, { x: state.p6x + offsets.sqC.x, y: state.p6y + offsets.sqC.y, rotation: offsets.sqC.rotation, opacity: state.opacity, transformOrigin: offsets.sqC.origin });
 
     // CONTINUOUSLY recalculate proximity while the squares are moving!
     updateProximity();
@@ -512,7 +526,7 @@ wraps.forEach(wrap => {
       // The tip vertex moves freely in both directions with the cursor!
       innerP2x: Math.max(0, 60 + dragDistanceX),
       innerP2y: Math.max(0, 60 + dragDistanceY),
-      
+
       // We set duration to 0 so it instantly tracks the finger 1:1 with ZERO latency!
       duration: 0,
       overwrite: "auto",
@@ -664,8 +678,7 @@ wraps.forEach(wrap => {
         duration: 0.35,
         ease: customEase,
         overwrite: "auto",
-        p1x: 0, p1y: -40, p2x: 160, p2y: 30, p3x: 104, p3y: 60,
-        p4x: 140, p4y: 110, p5x: 55, p5y: 104, p6x: 65, p6y: 150, p7x: -500, p7y: 80,
+        ...flapOpenState,
         opacity: 1
       });
 
@@ -697,8 +710,8 @@ wraps.forEach(wrap => {
       return;
     }
 
-    // 2. EXCESSIVE DRAG DETECTED: Default to view (sqB) if dragged heavily but missed buttons
-    if (!lockedButton && (state.innerP2x > 140 || state.innerP2y > 140)) {
+    // 2. EXCESSIVE DRAG DETECTED: Default to view (sqB) if dragged heavily towards opposite diagonal but missed buttons
+    if (!lockedButton && (state.innerP2x > 160 && state.innerP2y > 160)) {
       lockedButton = sqB;
     }
 
@@ -772,8 +785,7 @@ wraps.forEach(wrap => {
         duration,
         ease: customEase,
         overwrite: "auto",
-        p1x: 0, p1y: -40, p2x: 160, p2y: 30, p3x: 104, p3y: 60,
-        p4x: 140, p4y: 110, p5x: 55, p5y: 104, p6x: 65, p6y: 150, p7x: -500, p7y: 80,
+        ...flapOpenState,
         opacity: 1,
         onUpdate: render
       });
@@ -810,4 +822,61 @@ wraps.forEach(wrap => {
   // (We removed touchAction: 'none' so the browser CAN scroll if they swipe immediately)
   card.addEventListener('mousedown', handleMouseDown);
   card.addEventListener('touchstart', handleMouseDown, { passive: true });
+
+  // ----------------------------------------------------
+  // ACCESSIBILITY & KEYBOARD SUPPORT
+  // ----------------------------------------------------
+  // When a user Tabs to a button, we visually pop it out!
+  // When they hit Enter/Space, we trigger the click emulation for that specific button!
+  // A shared persistent tracker so we can smoothly transition between buttons!
+  let fakeCursor = { x: 0, y: 0 };
+
+  [sqA, sqB, sqC].forEach(sq => {
+    sq.addEventListener('focus', () => {
+      // Nudge the flap mathematically over the focused button to complete the visual effect
+      let targetX = 0, targetY = 0;
+      if (sq === sqA) { targetX = -130; targetY = -40; }
+      if (sq === sqB) { targetX = -CLICK_DRAG_X; targetY = -CLICK_DRAG_Y; }
+      if (sq === sqC) { targetX = -40; targetY = -140; }
+
+      // If we are already dragging (i.e. tabbing from another button), don't reset the cursor!
+      // This makes the green peel slide smoothly from one option to the other.
+      isDragging = true;
+      startX = 0; startY = 0;
+
+      gsap.killTweensOf(fakeCursor); // Cancel any previous fake drag
+      gsap.killTweensOf(state); // Cancel the snap-back from the blur event!
+
+      // 1. Visually open the white flap just like when physically holding down!
+      gsap.to(state, {
+        duration: 0.3,
+        ...flapOpenState,
+        opacity: 1,
+        onUpdate: render
+      });
+
+      // 2. Simultaneously drag the green peel over the button!
+      gsap.to(fakeCursor, {
+        x: targetX, y: targetY, duration: 0.35, ease: "power2.out",
+        onUpdate: () => handleMouseMove({ clientX: fakeCursor.x, clientY: fakeCursor.y, type: 'fake', isInstant: true }),
+        onComplete: () => { lockedButton = sq; }
+      });
+    });
+
+    sq.addEventListener('blur', () => {
+      lockedButton = null;
+      isDragging = true;
+      gsap.killTweensOf(fakeCursor);
+      handleMouseUp({ type: 'fake', isAbort: true });
+    });
+
+    sq.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        lockedButton = sq; // Ensure it is locked for the flyaway
+        isDragging = true;
+        handleMouseUp({ type: 'fake' });
+      }
+    });
+  });
 });
