@@ -3,9 +3,9 @@
 // 0: Current setup (Wobbly outlines everywhere)
 // 1: Normal straight lines (No wobble)
 // 3: No outlines (Fills only, no strokes)
-// 4: Outlines only on the outside card and buttons (Inner peel has no outlines)
+// 4: Outlines only on the outside card and buttons (Inner peel has no outlines) for mobile latency testing
 // ----------------------------------------------------
-const LINE_MODE = 3;
+const LINE_MODE = 4;
 
 // ----------------------------------------------------
 // EYE CONTROLS
