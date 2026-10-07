@@ -495,7 +495,7 @@ wraps.forEach(wrap => {
     // Mobile thumb-obscurity fix: Multiply the physical drag distance on touch devices 
     // so the green peel stays visually ahead of the user's thumb!
     // We only multiply positive (forward) drag so pushing backward remains 1:1.
-    const dragMultiplier = e.touches ? 1.6 : 1.0;
+    const dragMultiplier = e.touches ? 1.2 : 1.0;
     const computedDx = rawDx > 0 ? rawDx * dragMultiplier : rawDx;
     const computedDy = rawDy > 0 ? rawDy * dragMultiplier : rawDy;
 
