@@ -31,17 +31,17 @@
     },
     specular: {
       enabled: true,
-      intensity: 0.28,
+      intensity: 0.29,
       size: 80,
-      falloff: 0.84,
-      travel: 44,
+      falloff: 1,
+      travel: 39,
       color: "golden"
     },
     fresnel: {
       enabled: true,
-      intensity: 0.4,
-      exponent: 3,
-      rimWidth: 20
+      intensity: 0.62,
+      exponent: 6.4,
+      rimWidth: 50
     },
     environment: {
       enabled: true,
@@ -51,15 +51,15 @@
     },
     surface: {
       washout: true,
-      washoutStrength: 0.15,
+      washoutStrength: 0.1,
       iridescence: false,
       iridescenceStrength: 0.08
     },
     backlight: {
       enabled: false,
-      brightness: 0.74,
-      contrast: 1.1,
-      saturation: 1.5,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1.3,
       glowIntensity: 0.6,
       glowBlur: 38,
       color: "cool"
@@ -67,7 +67,7 @@
     input: {
       source: "auto",
       gyroSensitivity: 1.5,
-      mouseSensitivity: 1
+      mouseSensitivity: 0
     },
     idle: {
       enabled: true,
@@ -78,10 +78,10 @@
     worldLight: {
       enabled: true,
       x: 0.5,
-      y: -0.6,
+      y: 0.5,
       z: 1.2,
       viewerZ: 1.2,
-      travel: 65,
+      travel: 39,
       glintStrength: 0.8
     }
   };

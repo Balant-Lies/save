@@ -468,17 +468,17 @@ const stickerProps = {
     },
     specular: {
       enabled: true,
-      intensity: 0.28,
+      intensity: 0.29,
       size: 80,
-      falloff: 0.84,
-      travel: 65,
+      falloff: 1,
+      travel: 39,
       color: "golden"
     },
     fresnel: {
       enabled: true,
-      intensity: 0.4,
-      exponent: 3,
-      rimWidth: 20
+      intensity: 0.62,
+      exponent: 6.4,
+      rimWidth: 50
     },
     environment: {
       enabled: true,
@@ -488,15 +488,15 @@ const stickerProps = {
     },
     surface: {
       washout: true,
-      washoutStrength: 0.15,
+      washoutStrength: 0.1,
       iridescence: false,
       iridescenceStrength: 0.08
     },
     backlight: {
       enabled: false,
-      brightness: 0.74,
-      contrast: 1.1,
-      saturation: 1.5,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1.3,
       glowIntensity: 0.6,
       glowBlur: 38,
       color: "cool"
@@ -514,14 +514,13 @@ const stickerProps = {
     },
     // Global overhead light source in 3D space
     // Screen is a vertical flat plane at Z=0 facing the person.
-    // Light is overhead (y = -0.6, above top edge) and in front (z = 1.2, near/above viewer).
     worldLight: {
       enabled: true,
       x: 0.5,        // Light source X (0.5 = centered horizontally)
-      y: 0.5,       // Light source Y (-0.6 = above top of screen)
+      y: 0.5,        // Light source Y (configured by user)
       z: 1.2,        // Light source Z (1.2 = in front of screen, near/above person)
       viewerZ: 1.2,  // Viewer distance in front of screen
-      travel: 65,    // Highlight displacement travel factor
+      travel: 39,    // Highlight displacement travel factor (synced to specular.travel)
       glintStrength: 0.8 // Flare intensity when surface normal aligns with light reflection
     }
   },
