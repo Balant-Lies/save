@@ -452,32 +452,60 @@ const stickerProps = {
   },
   shadow: { enabled: false },
 
-  // Specular Gloss & Glare Controls (Realistic Liquid Vinyl Sheen)
-  glare: {
-    enabled: true,            // true = realistic vinyl light reflection
-
-    // Auto Loop Testing Mode (Continuous automated specular sweep on PC)
-    autoLoop: {
-      enabled: false,          // true = automatically sweeps glare back and forth for instant visual testing
-      speed: 1.0,             // Sweep speed multiplier (0.5 = slow gentle studio scan, 2.0 = fast)
-      range: 36               // Travel distance (+/- % across the sticker)
+  // PBR Gloss & Specular Sheen (Derived from sticker-gloss-config.json)
+  gloss: {
+    enabled: true,
+    tilt: {
+      enabled: false,
+      maxTilt: 20,
+      multX: 1,
+      multY: 1,
+      invX: false,
+      invY: false,
+      lockX: false,
+      lockY: false,
+      smoothing: 0.1,
+      perspective: 900
     },
-
-    multiplier: 1.5,          // Motion sensitivity & glare travel range multiplier (tune for wider or tighter reflection sweep)
-    intensity: 0.65,          // Peak specular highlight brightness (0.0 to 1.0)
-    angle: -135,              // Specular light beam angle in degrees (-135deg diagonal light)
-    barWidth: 20,             // Primary light bar width (% of sticker)
-    softness: 30,             // Diffusion / edge falloff blur (%)
-    dualBar: true,           // Secondary subtle studio rim light for authentic vinyl depth
-    dualBarOffset: 26,        // Distance between primary and secondary reflection bar (%)
-    blendMode: 'overlay',     // 'overlay', 'screen', 'soft-light'
-    tint: '255, 255, 255',    // Specular light tint
-    smoothing: 0.12,          // Inertial damping / physics lerp (0.05 = super liquid, 0.2 = snappier, prevents jumping/freezing)
-    mouseTracking: true,      // true = responds smoothly to mouse cursor proximity across the desk
-    gyroscope: true,          // true = responds to physical phone tilt on mobile
-    restPosition: 50          // Resting light bar position (% across sticker, 50 = centered)
+    specular: {
+      enabled: true,
+      intensity: 0.01,
+      size: 80,
+      falloff: 0.72,
+      travel: 40,
+      color: "warm"
+    },
+    fresnel: {
+      enabled: true,
+      intensity: 0.4,
+      exponent: 3,
+      rimWidth: 20
+    },
+    environment: {
+      enabled: true,
+      intensity: 0.25,
+      blur: 12,
+      preset: "studio"
+    },
+    surface: {
+      washout: true,
+      washoutStrength: 0.1,
+      iridescence: false,
+      iridescenceStrength: 0.08
+    },
+    input: {
+      source: "gyro",
+      gyroSensitivity: 1.5,
+      mouseSensitivity: 1
+    },
+    idle: {
+      enabled: true,
+      speed: 0.8,
+      amplitude: 0.35,
+      tilt: false
+    }
   },
-  get gloss() { return this.glare; },
+  get glare() { return this.gloss; },
 
   // 1. Work Navigation Sticker (CRT Monitor)
   work: {

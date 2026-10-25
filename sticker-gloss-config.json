@@ -1,0 +1,51 @@
+{
+  "tilt": {
+    "enabled": false,
+    "maxTilt": 20,
+    "multX": 1,
+    "multY": 1,
+    "invX": false,
+    "invY": false,
+    "lockX": false,
+    "lockY": false,
+    "smoothing": 0.1,
+    "perspective": 900
+  },
+  "specular": {
+    "enabled": true,
+    "intensity": 0.01,
+    "size": 80,
+    "falloff": 0.72,
+    "travel": 40,
+    "color": "warm"
+  },
+  "fresnel": {
+    "enabled": true,
+    "intensity": 0.4,
+    "exponent": 3,
+    "rimWidth": 20
+  },
+  "environment": {
+    "enabled": true,
+    "intensity": 0.25,
+    "blur": 12,
+    "preset": "studio"
+  },
+  "surface": {
+    "washout": true,
+    "washoutStrength": 0.1,
+    "iridescence": false,
+    "iridescenceStrength": 0.08
+  },
+  "input": {
+    "source": "sim",
+    "gyroSensitivity": 1.5,
+    "mouseSensitivity": 1
+  },
+  "idle": {
+    "enabled": true,
+    "speed": 0.8,
+    "amplitude": 0.35,
+    "tilt": false
+  }
+}
