@@ -31,11 +31,11 @@
     },
     specular: {
       enabled: true,
-      intensity: 0.01,
+      intensity: 0.28,
       size: 80,
-      falloff: 0.72,
-      travel: 40,
-      color: "warm"
+      falloff: 0.84,
+      travel: 44,
+      color: "golden"
     },
     fresnel: {
       enabled: true,
@@ -51,9 +51,18 @@
     },
     surface: {
       washout: true,
-      washoutStrength: 0.1,
+      washoutStrength: 0.15,
       iridescence: false,
       iridescenceStrength: 0.08
+    },
+    backlight: {
+      enabled: false,
+      brightness: 0.74,
+      contrast: 1.1,
+      saturation: 1.5,
+      glowIntensity: 0.6,
+      glowBlur: 38,
+      color: "cool"
     },
     input: {
       source: "auto",
@@ -76,6 +85,7 @@
     fresnel: Object.assign({}, defaultGloss.fresnel, rawGloss.fresnel || {}),
     environment: Object.assign({}, defaultGloss.environment, rawGloss.environment || {}),
     surface: Object.assign({}, defaultGloss.surface, rawGloss.surface || {}),
+    backlight: Object.assign({}, defaultGloss.backlight, rawGloss.backlight || {}),
     input: Object.assign({}, defaultGloss.input, rawGloss.input || {}),
     idle: Object.assign({}, defaultGloss.idle, rawGloss.idle || {})
   };
@@ -950,6 +960,13 @@
       rootStyle.setProperty('--gloss-angle', `${globalCfg.glare.angle != null ? globalCfg.glare.angle : -135}deg`);
       rootStyle.setProperty('--sheen-opacity', globalCfg.glare.intensity != null ? globalCfg.glare.intensity : 0.65);
       rootStyle.setProperty('--sheen-blend', globalCfg.glare.blendMode || 'overlay');
+
+      if (globalCfg.gloss && globalCfg.gloss.backlight) {
+        const b = globalCfg.gloss.backlight;
+        if (b.brightness != null) rootStyle.setProperty('--sticker-bright', b.brightness);
+        if (b.contrast != null) rootStyle.setProperty('--sticker-contrast', b.contrast);
+        if (b.saturation != null) rootStyle.setProperty('--sticker-sat', b.saturation);
+      }
     },
 
     // ----------------------------------------------------
@@ -1364,7 +1381,7 @@
       // 2. Desktop Mouse Hovering (Completely disabled on touch, zero interference during dragging)
       window.addEventListener('pointermove', (e) => {
         if (e.pointerType === 'touch') return;
-        if (inputCfg.source === 'gyro' || inputCfg.source === 'sim') return;
+        if (inputCfg.source === 'gyro' || inputCfg.source === 'sim' || inputCfg.mouseSensitivity === 0 || inputCfg.mouseTracking === false) return;
         if (document.body.classList.contains('is-dragging') || document.body.classList.contains('is-peeling')) return;
 
         const sens = inputCfg.mouseSensitivity || 1;

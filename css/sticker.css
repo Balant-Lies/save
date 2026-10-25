@@ -23,6 +23,11 @@
   /* Global Sticker Scale */
   --sticker-scale: 1.0;
 
+  /* Sticker Base Artwork Exposure & Saturation (From sticker-gloss-config (1).json) */
+  --sticker-bright: 0.74;
+  --sticker-contrast: 1.1;
+  --sticker-sat: 1.5;
+
   /* Corner Peel Affordance Offset & Dynamics */
   --peel-x: 71px;
   --peel-y: 67px;
@@ -102,6 +107,7 @@ body.is-dragging .sticker-root .sticker-body {
   height: 100%;
   object-fit: contain;
   pointer-events: none;
+  filter: brightness(var(--sticker-bright, 0.74)) contrast(var(--sticker-contrast, 1.1)) saturate(var(--sticker-sat, 1.5));
 }
 
 /* ----------------------------------------------------

@@ -452,9 +452,8 @@ const stickerProps = {
   },
   shadow: { enabled: false },
 
-  // PBR Gloss & Specular Sheen (Derived from sticker-gloss-config.json)
+  // PBR Gloss & Specular Sheen (Derived from sticker-gloss-config (1).json)
   gloss: {
-    enabled: true,
     tilt: {
       enabled: false,
       maxTilt: 20,
@@ -469,11 +468,11 @@ const stickerProps = {
     },
     specular: {
       enabled: true,
-      intensity: 0.01,
+      intensity: 0.28,
       size: 80,
-      falloff: 0.72,
-      travel: 40,
-      color: "warm"
+      falloff: 0.84,
+      travel: 44,
+      color: "golden"
     },
     fresnel: {
       enabled: true,
@@ -489,14 +488,23 @@ const stickerProps = {
     },
     surface: {
       washout: true,
-      washoutStrength: 0.1,
+      washoutStrength: 0.15,
       iridescence: false,
       iridescenceStrength: 0.08
     },
+    backlight: {
+      enabled: false,
+      brightness: 0.74,
+      contrast: 1.1,
+      saturation: 1.5,
+      glowIntensity: 0.6,
+      glowBlur: 38,
+      color: "cool"
+    },
     input: {
-      source: "gyro",
+      source: "auto",
       gyroSensitivity: 1.5,
-      mouseSensitivity: 1
+      mouseSensitivity: 0
     },
     idle: {
       enabled: true,
