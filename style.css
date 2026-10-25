@@ -1,112 +1,15 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ====================================================
+   MAIN STYLESHEET
+   This file imports the modular stylesheets:
+   - css/base.css: Global reset, body, and responsive grid layout
+   - css/card.css: Card styles, peeling shapes, hitboxes, and theme variables
+   
+   If you want to edit:
+   - Overall grid layout or screen breakpoints -> open css/base.css
+   - Card appearance, colors, or peel flap -> open css/card.css
+   - Subpages (summary, media, project1) -> open css/subpage.css
+   - Page transition circle reveal -> open css/transitions.css
+   ==================================================== */
 
-body {
-  background-color: #ffffff;
-  min-height: 100vh;
-}
-
-.card {
-  position: relative;
-  /* background-color: #ffffff;  REMOVED: Handled by SVG */
-  width: 300px;
-  height: 250px;
-  padding: 20px 10px 10px 10px;
-  /* clip-path: polygon(...); REMOVED: Handled by dynamic SVG clipPath! */
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-user-drag: none;
-}
-
-.inner-rect {
-  background-color: var(--card-bg, #0c0c0c);
-  width: 100%;
-  height: 100%;
-}
-
-.hitbox {
-  position: absolute;
-  bottom: -14px;
-  right: -10px;
-  width: 80px;
-  height: 80px;
-  z-index: 10;
-  cursor: pointer;
-  touch-action: none;
-  background-color: rgba(0, 255, 0, 0);
-  transform: rotate(180deg);
-  clip-path: polygon(100% 0%, 100% 33%, 100% 66%, 100% 100%, 66% 100%, 33% 100%, 0% 100%);
-}
-
-.triangle-svg {
-  position: absolute;
-  bottom: -4px;
-  right: 0px;
-  width: 120px;
-  height: 120px;
-  transform: rotate(180deg);
-  pointer-events: none;
-  overflow: visible;
-  /* Filter removed. Handled mathematically now! */
-}
-
-.wrap {
-  position: relative;
-  /* THEME VARIABLES: Change these per-card to easily theme them! */
-  --card-bg: #0c0c0c;        /* Background inside the card */
-  --card-flap: #ffffff;      /* The white peeled back paper */
-  --card-peel: #1A885C;      /* The green underside of the peel */
-  
-  --btn-default: #ffffff;    /* Default icon color */
-  --btn-active: #1A885C;     /* Highlighted icon color */
-  
-  --eye-lid: #ffffff;        /* Eyelid color when selected */
-  --eye-pupil: #1A885C;      /* Eye pupil color when selected */
-}
-
-.card-bg-svg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  overflow: visible;
-}
-
-.triangle-path {
-  fill: var(--card-flap, #ffffff);
-  stroke: var(--card-flap, #ffffff);
-  /* Geometry and animation are now handled cleanly by HTML and GSAP */
-}
-
-.inner-triangle-path {
-  fill: var(--card-peel, #1A885C);
-  stroke: black;
-}
-
-
-/* Disable the native bloating focus ring */
-g:focus {
-  outline: none;
-}
-
-/* Reveal our custom non-scaling SVG focus ring instead! */
-g:focus .custom-focus {
-  opacity: 1;
-}
-
-.grid {
-  display: grid;
-  gap: 2rem;
-  padding: 2rem;
-  justify-content: center;
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 768px) {
-  .grid {
-    grid-template-columns: repeat(2, 300px);
-  }
-}
+@import url('css/base.css');
+@import url('css/card.css');
