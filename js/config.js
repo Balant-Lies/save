@@ -471,7 +471,7 @@ const stickerProps = {
       intensity: 0.28,
       size: 80,
       falloff: 0.84,
-      travel: 44,
+      travel: 65,
       color: "golden"
     },
     fresnel: {
@@ -512,12 +512,17 @@ const stickerProps = {
       amplitude: 0.35,
       tilt: false
     },
-    // Global overhead light source with spatial parallax
+    // Global overhead light source in 3D space
+    // Screen is a vertical flat plane at Z=0 facing the person.
+    // Light is overhead (y = -0.6, above top edge) and in front (z = 1.2, near/above viewer).
     worldLight: {
       enabled: true,
-      x: 0.5,        // Light source X in viewport coordinates (0.5 = horizontal center)
-      y: 0.25,       // Light source Y in viewport coordinates (0.25 = overhead desk lamp)
-      parallax: 0.45 // Natural spatial parallax factor across screen distance
+      x: 0.5,        // Light source X (0.5 = centered horizontally)
+      y: 0.5,       // Light source Y (-0.6 = above top of screen)
+      z: 1.2,        // Light source Z (1.2 = in front of screen, near/above person)
+      viewerZ: 1.2,  // Viewer distance in front of screen
+      travel: 65,    // Highlight displacement travel factor
+      glintStrength: 0.8 // Flare intensity when surface normal aligns with light reflection
     }
   },
   get glare() { return this.gloss; },

@@ -78,8 +78,11 @@
     worldLight: {
       enabled: true,
       x: 0.5,
-      y: 0.25,
-      parallax: 0.45
+      y: -0.6,
+      z: 1.2,
+      viewerZ: 1.2,
+      travel: 65,
+      glintStrength: 0.8
     }
   };
 
@@ -190,14 +193,14 @@
     return f0 + (1 - f0) * Math.pow(normAngle, frExp || 3);
   }
 
-  function renderSpecular(el, nx, ny, fresnel, cfg) {
+  function renderSpecular(el, nx, ny, fresnel, cfg, glint) {
     if (!el) return;
     if (!cfg || cfg.enabled === false) { el.style.opacity = '0'; return; }
 
     const colors = LIGHT_COLORS[cfg.color] || LIGHT_COLORS.warm;
-    const travel = cfg.travel != null ? cfg.travel : 40;
-    const rx = 50 - nx * travel;
-    const ry = 50 - ny * travel;
+    const travel = cfg.travel != null ? cfg.travel : 65;
+    const rx = 50 + nx * travel;
+    const ry = 50 + ny * travel;
 
     const size = cfg.size != null ? cfg.size : 80;
     const fall = cfg.falloff != null ? cfg.falloff : 0.72;
@@ -208,7 +211,7 @@
     const core = colors.core;
     const edge = colors.edge;
 
-    el.style.background = `radial-gradient(ellipse ${size}% ${size * 0.85}% at ${rx}% ${ry}%,
+    el.style.background = `radial-gradient(ellipse ${size}% ${size * 0.85}% at ${rx.toFixed(1)}% ${ry.toFixed(1)}%,
       rgba(${core[0]},${core[1]},${core[2]}, 0.95) 0%,
       rgba(${core[0]},${core[1]},${core[2]}, 0.7) ${mid1}%,
       rgba(${edge[0]},${edge[1]},${edge[2]}, 0.3) ${mid2}%,
@@ -216,9 +219,11 @@
       transparent ${size + 15}%
     )`;
 
-    const baseOpacity = cfg.intensity != null ? cfg.intensity : 0.01;
-    const fresnelBoost = fresnel * 0.4;
-    el.style.opacity = String(Math.min(1, baseOpacity + fresnelBoost));
+    const baseIntensity = cfg.intensity != null ? cfg.intensity : 0.28;
+    const gFactor = glint != null ? glint : 0.5;
+    const dynamicIntensity = baseIntensity * (0.35 + 0.65 * gFactor);
+    const fresnelBoost = fresnel * 0.3;
+    el.style.opacity = String(Math.min(1, dynamicIntensity + fresnelBoost));
   }
 
   function renderFresnel(el, nx, ny, fresnel, cfg) {
@@ -400,6 +405,8 @@
       this.curTX = 0; this.curTY = 0;
       this.tgtNX = 0; this.tgtNY = 0;
       this.curNX = 0; this.curNY = 0;
+      this.tgtGlint = 0.5;
+      this.curGlint = 0.5;
       this.lastRenderedNX = null;
       this.lastRenderedNY = null;
       this.currentGlarePos = 50;
@@ -444,17 +451,15 @@
       // Resting visual state
       this.updatePeelStateVisuals(false);
 
-      // Initial resting PBR gloss render anchored to global overhead light source
-      const initParallax = StickerEngine.computeWorldParallax(this, globalCfg.gloss);
+      // Initial resting PBR gloss render anchored to 3D overhead room light
+      const initP = StickerEngine.computeWorldParallax(this, globalCfg.gloss);
       const maxTilt = (globalCfg.gloss && globalCfg.gloss.tilt && globalCfg.gloss.tilt.maxTilt) || 20;
-      this.tgtNX = Math.max(-1, Math.min(1, initParallax.offsetX));
-      this.tgtNY = Math.max(-1, Math.min(1, initParallax.offsetY));
+      StickerEngine.applyOpticalState(this, initP.hx, initP.hy, initP.hz, 0, 0, maxTilt);
       this.curNX = this.tgtNX;
       this.curNY = this.tgtNY;
-      this.tgtTX = this.tgtNX * maxTilt;
-      this.tgtTY = this.tgtNY * maxTilt;
       this.curTX = this.tgtTX;
       this.curTY = this.tgtTY;
+      this.curGlint = this.tgtGlint;
       this.renderGlossFrame(globalCfg.gloss);
 
       // Bind tactile pointer events
@@ -605,6 +610,7 @@
       this.curTY += (this.tgtTY - this.curTY) * sm;
       this.curNX += (this.tgtNX - this.curNX) * sm;
       this.curNY += (this.tgtNY - this.curNY) * sm;
+      this.curGlint += (this.tgtGlint - this.curGlint) * sm;
 
       let tx = Math.max(-maxTilt, Math.min(maxTilt, this.curTX));
       let ty = Math.max(-maxTilt, Math.min(maxTilt, this.curTY));
@@ -630,7 +636,7 @@
       const fresnel = fresnelFactor(tx, ty, maxTilt, frExp);
 
       // Render PBR sub-layers (Notice: NO 3D transform is ever applied to rootEl or bodyEl!)
-      if (this.lSpecular) renderSpecular(this.lSpecular, nx, ny, fresnel, cfg.specular);
+      if (this.lSpecular) renderSpecular(this.lSpecular, nx, ny, fresnel, cfg.specular, this.curGlint);
       if (this.lFresnel) renderFresnel(this.lFresnel, nx, ny, fresnel, cfg.fresnel);
       if (this.lEnv) renderEnvReflection(this.lEnv, nx, ny, cfg.environment);
       if (this.lWashout) renderWashout(this.lWashout, fresnel, cfg.surface);
@@ -808,22 +814,16 @@
             const nextY = this.originY + dy;
             this.updatePosition(nextX, nextY);
 
-            // Dynamically recalculate world light highlight in real-time as sticker moves across the desk
+            // Dynamically recalculate 3D overhead reflection as sticker moves across the desk
             const p = StickerEngine.computeWorldParallax(this, globalCfg.gloss);
             const maxTilt = (globalCfg.gloss && globalCfg.gloss.tilt && globalCfg.gloss.tilt.maxTilt) || 20;
-            this.tgtNX = Math.max(-1, Math.min(1, p.offsetX));
-            this.tgtNY = Math.max(-1, Math.min(1, p.offsetY));
-            this.tgtTX = this.tgtNX * maxTilt;
-            this.tgtTY = this.tgtNY * maxTilt;
+            StickerEngine.applyOpticalState(this, p.hx, p.hy, p.hz, 0, 0, maxTilt);
             this.renderGlossFrame(globalCfg.gloss);
 
             // Update attached children's parallax as well
             for (const child of this.childrenStickers) {
               const cp = StickerEngine.computeWorldParallax(child, globalCfg.gloss);
-              child.tgtNX = Math.max(-1, Math.min(1, cp.offsetX));
-              child.tgtNY = Math.max(-1, Math.min(1, cp.offsetY));
-              child.tgtTX = child.tgtNX * maxTilt;
-              child.tgtTY = child.tgtNY * maxTilt;
+              StickerEngine.applyOpticalState(child, cp.hx, cp.hy, cp.hz, 0, 0, maxTilt);
               child.renderGlossFrame(globalCfg.gloss);
             }
 
@@ -843,18 +843,12 @@
           window.removeEventListener('pointercancel', onUp);
 
           // Smoothly glide gloss back to resting world light position based on drop position
-          const dropParallax = StickerEngine.computeWorldParallax(this, globalCfg.gloss);
+          const dropP = StickerEngine.computeWorldParallax(this, globalCfg.gloss);
           const maxTilt = (globalCfg.gloss && globalCfg.gloss.tilt && globalCfg.gloss.tilt.maxTilt) || 20;
-          this.tgtNX = Math.max(-1, Math.min(1, dropParallax.offsetX));
-          this.tgtNY = Math.max(-1, Math.min(1, dropParallax.offsetY));
-          this.tgtTX = this.tgtNX * maxTilt;
-          this.tgtTY = this.tgtNY * maxTilt;
+          StickerEngine.applyOpticalState(this, dropP.hx, dropP.hy, dropP.hz, 0, 0, maxTilt);
           for (const child of this.childrenStickers) {
-            const childParallax = StickerEngine.computeWorldParallax(child, globalCfg.gloss);
-            child.tgtNX = Math.max(-1, Math.min(1, childParallax.offsetX));
-            child.tgtNY = Math.max(-1, Math.min(1, childParallax.offsetY));
-            child.tgtTX = child.tgtNX * maxTilt;
-            child.tgtTY = child.tgtNY * maxTilt;
+            const childP = StickerEngine.computeWorldParallax(child, globalCfg.gloss);
+            StickerEngine.applyOpticalState(child, childP.hx, childP.hy, childP.hz, 0, 0, maxTilt);
           }
           StickerEngine.requestGlossTick();
 
@@ -1163,10 +1157,7 @@
           if (!this.activeInputDevice && !this.isIdleActive()) {
             const p = this.computeWorldParallax(sticker, globalCfg.gloss);
             const maxTilt = (globalCfg.gloss && globalCfg.gloss.tilt && globalCfg.gloss.tilt.maxTilt) || 20;
-            sticker.tgtNX = Math.max(-1, Math.min(1, p.offsetX));
-            sticker.tgtNY = Math.max(-1, Math.min(1, p.offsetY));
-            sticker.tgtTX = sticker.tgtNX * maxTilt;
-            sticker.tgtTY = sticker.tgtNY * maxTilt;
+            this.applyOpticalState(sticker, p.hx, p.hy, p.hz, 0, 0, maxTilt);
           }
         }
         this.requestGlossTick();
@@ -1315,22 +1306,24 @@
     activeInputDevice: null,
 
     // ----------------------------------------------------
-    // GLOBAL WORLD LIGHT SPATIAL PARALLAX RESOLVER
-    // Calculates the angular offset from a virtual overhead room light
-    // to the sticker's exact position on screen.
-    // Gives each sticker on the screen natural, physically coherent variation
-    // without random numbers or identical clone-stamped glares.
+    // GLOBAL 3D OVERHEAD ROOM LIGHT & BLINN-PHONG OPTICS
+    // Models the screen as a vertical flat plane at Z=0.
+    // The virtual room light is overhead (Y < 0) and in front of the screen (Z > 0) near the viewer.
+    // Calculates exact physical half-vectors and dynamic glints per sticker.
     // ----------------------------------------------------
     computeWorldParallax(sticker, glossCfg) {
       const g = glossCfg || globalCfg.gloss || {};
       const wl = g.worldLight || {};
-      if (wl.enabled === false) return { offsetX: 0, offsetY: 0 };
+      if (wl.enabled === false) return { hx: 0, hy: -0.3, hz: 0.95 };
 
       const lightX = wl.x != null ? wl.x : 0.5;
-      const lightY = wl.y != null ? wl.y : 0.25;
-      const parallax = wl.parallax != null ? wl.parallax : 0.45;
+      const lightY = wl.y != null ? wl.y : -0.6; // Overhead above screen plane
+      const lightZ = wl.z != null ? wl.z : 1.2;  // In front of screen, near/above viewer
+      const viewerX = 0.5;
+      const viewerY = 0.5;
+      const viewerZ = wl.viewerZ != null ? wl.viewerZ : 1.2;
 
-      if (!sticker || !sticker.rootEl) return { offsetX: 0, offsetY: 0 };
+      if (!sticker || !sticker.rootEl) return { hx: 0, hy: -0.3, hz: 0.95 };
 
       const rect = sticker.rootEl.getBoundingClientRect();
       const screenX = rect.left + rect.width * 0.5;
@@ -1338,13 +1331,53 @@
       const winW = Math.max(1, window.innerWidth);
       const winH = Math.max(1, window.innerHeight);
 
-      const normX = screenX / winW;
-      const normY = screenY / winH;
+      // Normalized coordinates on screen plane (0 to 1)
+      const u = Math.max(0, Math.min(1, screenX / winW));
+      const v = Math.max(0, Math.min(1, screenY / winH));
 
-      const offsetX = (normX - lightX) * parallax;
-      const offsetY = (normY - lightY) * parallax;
+      // Vector from sticker surface point (u, v, 0) to light source
+      const Lx = lightX - u;
+      const Ly = lightY - v;
+      const Lz = lightZ;
+      const Llen = Math.hypot(Lx, Ly, Lz) || 1;
 
-      return { offsetX, offsetY };
+      // Vector from sticker surface point (u, v, 0) to viewer eye
+      const Vx = viewerX - u;
+      const Vy = viewerY - v;
+      const Vz = viewerZ;
+      const Vlen = Math.hypot(Vx, Vy, Vz) || 1;
+
+      // Blinn-Phong Half-vector (ideal reflection surface normal)
+      const Hx = (Lx / Llen) + (Vx / Vlen);
+      const Hy = (Ly / Llen) + (Vy / Vlen);
+      const Hz = (Lz / Llen) + (Vz / Vlen);
+      const Hlen = Math.hypot(Hx, Hy, Hz) || 1;
+
+      return {
+        hx: Hx / Hlen,
+        hy: Hy / Hlen,
+        hz: Hz / Hlen
+      };
+    },
+
+    applyOpticalState(sticker, hx, hy, hz, tiltX, tiltY, maxTilt) {
+      const Nx = Math.max(-0.6, Math.min(0.6, tiltX));
+      const Ny = Math.max(-0.6, Math.min(0.6, tiltY));
+      const Nz = Math.sqrt(Math.max(0.01, 1 - Nx * Nx - Ny * Ny));
+
+      // Specular hotspot offset: difference between half-vector and surface normal
+      const nx = Math.max(-1, Math.min(1, hx - Nx));
+      const ny = Math.max(-1, Math.min(1, hy - Ny));
+
+      // Blinn-Phong alignment: surface normal dot half-vector
+      const dot = Math.max(0, Nx * hx + Ny * hy + Nz * hz);
+      const glint = Math.pow(dot, 14);
+
+      sticker.tgtNX = nx;
+      sticker.tgtNY = ny;
+      sticker.tgtTX = nx * maxTilt;
+      sticker.tgtTY = ny * maxTilt;
+      sticker.tgtGlint = glint;
     },
 
     isIdleActive() {
@@ -1374,20 +1407,15 @@
           const amp = idleCfg.amplitude != null ? idleCfg.amplitude : 0.35;
           this.idleTime += dt * speed;
 
-          // Smooth Lissajous pattern from sticker-lab
-          const idleNX = Math.sin(this.idleTime * 0.7) * amp;
-          const idleNY = Math.sin(this.idleTime * 0.5 + 1.2) * amp * 0.7;
+          // Smooth room breathing tilt around rest
+          const idleTiltX = Math.sin(this.idleTime * 0.7) * (amp * 0.25);
+          const idleTiltY = Math.sin(this.idleTime * 0.5 + 1.2) * (amp * 0.2);
           const maxTilt = (glossCfg.tilt && glossCfg.tilt.maxTilt) || 20;
 
           for (const sticker of this.stickers.values()) {
             if (sticker.isDraggingMode || sticker.isPointerActive) continue;
-            const { offsetX, offsetY } = this.computeWorldParallax(sticker, glossCfg);
-            const nx = Math.max(-1, Math.min(1, idleNX + offsetX));
-            const ny = Math.max(-1, Math.min(1, idleNY + offsetY));
-            sticker.tgtNX = nx;
-            sticker.tgtNY = ny;
-            sticker.tgtTX = nx * maxTilt;
-            sticker.tgtTY = ny * maxTilt;
+            const p = this.computeWorldParallax(sticker, glossCfg);
+            this.applyOpticalState(sticker, p.hx, p.hy, p.hz, idleTiltX, idleTiltY, maxTilt);
           }
         }
 
@@ -1437,26 +1465,17 @@
           let dg = (e.gamma - gyroGamma) * sens;
           let db = (e.beta - gyroBeta) * sens;
 
-          let rawNX = dg / 45;
-          let rawNY = db / 45;
+          let tiltX = (dg / 45) * 0.35 * multX;
+          let tiltY = (db / 45) * 0.35 * multY;
+          if (tiltCfg.invX) tiltX *= -1;
+          if (tiltCfg.invY) tiltY *= -1;
 
           this.activeInputDevice = 'gyro';
 
           for (const s of this.stickers.values()) {
             if (s.isDraggingMode || s.isPointerActive) continue;
-            const { offsetX, offsetY } = this.computeWorldParallax(s, glossCfg);
-            let nx = Math.max(-1, Math.min(1, rawNX + offsetX));
-            let ny = Math.max(-1, Math.min(1, rawNY + offsetY));
-
-            let tiltX = nx * maxTilt * multX;
-            let tiltY = ny * maxTilt * multY;
-            if (tiltCfg.invX) tiltX *= -1;
-            if (tiltCfg.invY) tiltY *= -1;
-
-            s.tgtTX = tiltX;
-            s.tgtTY = tiltY;
-            s.tgtNX = nx;
-            s.tgtNY = ny;
+            const p = this.computeWorldParallax(s, glossCfg);
+            this.applyOpticalState(s, p.hx, p.hy, p.hz, tiltX, tiltY, maxTilt);
           }
           this.requestGlossTick();
         }, { passive: true });
@@ -1475,26 +1494,13 @@
         for (const sticker of this.stickers.values()) {
           if (sticker.isDraggingMode || sticker.isPointerActive) continue;
 
-          const rect = sticker.rootEl.getBoundingClientRect();
-          const centerX = rect.left + rect.width / 2;
-          const centerY = rect.top + rect.height / 2;
-
-          const rawNX = ((e.clientX - centerX) / (winW * 0.5)) * sens;
-          const rawNY = ((e.clientY - centerY) / (winH * 0.5)) * sens;
-
-          const { offsetX, offsetY } = this.computeWorldParallax(sticker, glossCfg);
-          let nx = Math.max(-1, Math.min(1, rawNX + offsetX));
-          let ny = Math.max(-1, Math.min(1, rawNY + offsetY));
-
-          let tiltX = nx * maxTilt * multX;
-          let tiltY = ny * maxTilt * multY;
+          let tiltX = ((e.clientX - winW * 0.5) / (winW * 0.5)) * 0.25 * sens * multX;
+          let tiltY = ((e.clientY - winH * 0.5) / (winH * 0.5)) * 0.25 * sens * multY;
           if (tiltCfg.invX) tiltX *= -1;
           if (tiltCfg.invY) tiltY *= -1;
 
-          sticker.tgtTX = tiltX;
-          sticker.tgtTY = tiltY;
-          sticker.tgtNX = nx;
-          sticker.tgtNY = ny;
+          const p = this.computeWorldParallax(sticker, glossCfg);
+          this.applyOpticalState(sticker, p.hx, p.hy, p.hz, tiltX, tiltY, maxTilt);
         }
 
         this.activeInputDevice = 'mouse';
@@ -1505,14 +1511,8 @@
         if (this.activeInputDevice === 'mouse') {
           this.activeInputDevice = null;
           for (const sticker of this.stickers.values()) {
-            const { offsetX, offsetY } = this.computeWorldParallax(sticker, glossCfg);
-            const maxTilt = (glossCfg.tilt && glossCfg.tilt.maxTilt) || 20;
-            const nx = Math.max(-1, Math.min(1, offsetX));
-            const ny = Math.max(-1, Math.min(1, offsetY));
-            sticker.tgtTX = nx * maxTilt;
-            sticker.tgtTY = ny * maxTilt;
-            sticker.tgtNX = nx;
-            sticker.tgtNY = ny;
+            const p = this.computeWorldParallax(sticker, glossCfg);
+            this.applyOpticalState(sticker, p.hx, p.hy, p.hz, 0, 0, maxTilt);
           }
           this.requestGlossTick();
         }
