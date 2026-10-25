@@ -439,7 +439,7 @@
     },
 
     // Evaluate proximity against the green peel triangle
-    evaluateProximity({ buttons, state, mouse, offsets, buttonLabels, defaultBehindText, setTextFn, proximityProps, summaryProps, buttonTextProps, eyeProps }) {
+    evaluateProximity({ buttons, state, mouse, offsets, buttonLabels, defaultBehindText, setTextFn, proximityProps, summaryProps, buttonTextProps, eyeProps, cardRect }) {
       const { sqA, sqB, sqC } = buttons;
       const svgTipX = state.innerP2x;
       const svgTipY = state.innerP2y;
@@ -500,11 +500,17 @@
 
         let isInsideTriangle = checkPointInTriangle(sqX, sqY, state.innerP1x, state.innerP1y, svgTipX, svgTipY, state.innerP3x, state.innerP3y);
 
-        // Strictly measure bounding box of the square diamond path itself, never child icons
-        const sqOutline = sq.querySelector('.sq-path') || sq;
-        const rect = sqOutline.getBoundingClientRect();
-        const sqCenterX = rect.left + rect.width / 2;
-        const sqCenterY = rect.top + rect.height / 2;
+        // Compute button center: use cached cardRect to eliminate forced synchronous reflows, or fallback
+        let sqCenterX, sqCenterY;
+        if (cardRect) {
+          sqCenterX = cardRect.left + sqX;
+          sqCenterY = cardRect.top + sqY;
+        } else {
+          const sqOutline = sq.querySelector('.sq-path') || sq;
+          const rect = sqOutline.getBoundingClientRect();
+          sqCenterX = rect.left + rect.width / 2;
+          sqCenterY = rect.top + rect.height / 2;
+        }
 
         const mouseDist = Math.hypot(mouse.x - sqCenterX, mouse.y - sqCenterY);
         const tipDist = Math.hypot(svgTipX - sqX, svgTipY - sqY);
@@ -512,6 +518,7 @@
 
         return { sq, tipDist, mouseDist, centroidDist, isInsideTriangle };
       });
+
 
       let lockedButton = null;
       let candidates = sqData.filter(d => d.isInsideTriangle);

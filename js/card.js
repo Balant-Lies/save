@@ -230,6 +230,7 @@ function initCard(wrap, customConfig) {
   let holdTimer = null;
   let isCardPress = false;
   let canPeel = true;
+  let activeCardRect = null;
 
   function updateProximity() {
     // If flyaway animation is running or card is not dragging, NEVER recompute proximity!
@@ -247,7 +248,8 @@ function initCard(wrap, customConfig) {
       proximityProps: buttonProximityProps,
       summaryProps: effectiveSummaryProps,
       buttonTextProps: config.buttonTextProps,
-      eyeProps: effectiveEyeProps
+      eyeProps: effectiveEyeProps,
+      cardRect: activeCardRect
     });
   }
 
@@ -331,8 +333,6 @@ function initCard(wrap, customConfig) {
       overwrite: "auto",
       onUpdate: render
     });
-
-    updateProximity();
   }
 
   // THE RELEASE LOGIC
@@ -340,6 +340,7 @@ function initCard(wrap, customConfig) {
     document.body.classList.remove('is-peeling');
     if (!isDragging) return;
     isDragging = false;
+    activeCardRect = null;
 
     clearTimeout(holdTimer);
 
@@ -470,6 +471,7 @@ function initCard(wrap, customConfig) {
   function handleMouseDown(e) {
     if (isDragging || isFlyingAway) return;
     isDragging = true;
+    activeCardRect = wrap.getBoundingClientRect();
     lockedButton = null;
 
     isCardPress = !e.target.closest('.hitbox');

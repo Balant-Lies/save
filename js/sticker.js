@@ -26,17 +26,27 @@
       shadowRestY: 16,
       shadowRestBlur: 28
     }, rawCfg.physics || {}),
-    gloss: Object.assign({
-      style: 'studio',
-      angle: -140,
-      opacity: 0.45,
-      blendMode: 'overlay',
-      tint: '255, 255, 255'
-    }, rawCfg.gloss || {}),
     glare: Object.assign({
-      mouseTracking: false,
-      gyroscope: true
-    }, rawCfg.glare || {}),
+      enabled: true,
+      autoLoop: {
+        enabled: true,
+        speed: 1.0,
+        range: 36
+      },
+      multiplier: 1.5,
+      intensity: 0.65,
+      angle: -135,
+      barWidth: 20,
+      softness: 14,
+      dualBar: true,
+      dualBarOffset: 26,
+      blendMode: 'overlay',
+      tint: '255, 255, 255',
+      smoothing: 0.12,
+      mouseTracking: true,
+      gyroscope: true,
+      restPosition: 50
+    }, rawCfg.glare || rawCfg.gloss || {}),
     work: Object.assign({
       id: 'work',
       name: 'Work CRT',
@@ -77,31 +87,57 @@
   };
 
   // ----------------------------------------------------
-  // SPECULAR GLOSS SHEEN GENERATOR
+  // SPECULAR GLOSS SHEEN GENERATOR (PHOTOREALISTIC VINYL)
+  // Generates studio bank reflections with dual light bars and diffusion
   // ----------------------------------------------------
-  function getGlossyGradient(posPct, glossCfg) {
-    const angle = `${glossCfg.angle}deg`;
-    const tint = glossCfg.tint || '255, 255, 255';
-    const style = glossCfg.style || 'studio';
+  function getGlossyGradient(posPct, glareCfg) {
+    if (!glareCfg || glareCfg.enabled === false) return 'none';
 
-    if (style === 'studio') {
-      const p1 = (posPct - 9).toFixed(1);
-      const p2 = (posPct + 9).toFixed(1);
-      return `linear-gradient(${angle},
-        transparent calc(${p1}% - 14%),
-        rgba(${tint}, 0.92) ${p1}%,
-        rgba(${tint}, 0.92) ${p2}%,
-        transparent calc(${p2}% + 14%)
-      )`;
-    } else {
-      const p1 = (posPct - 15).toFixed(1);
-      const p2 = (posPct + 15).toFixed(1);
-      return `linear-gradient(${angle},
-        transparent calc(${p1}% - 25%),
-        rgba(${tint}, 0.45) ${posPct.toFixed(1)}%,
-        transparent calc(${p2}% + 25%)
-      )`;
+    const angle = `${glareCfg.angle != null ? glareCfg.angle : -135}deg`;
+    const tint = glareCfg.tint || '255, 255, 255';
+    const halfW = (glareCfg.barWidth || 20) / 2;
+    const soft = glareCfg.softness || 25;
+    const peakAlpha = 0.95;
+
+    // Helper to generate a smooth, photographic bell-curve stop sequence for a light bar
+    function makeBarStops(center, w, s, peak) {
+      const spread = w + s;
+      return [
+        { pos: center - spread, alpha: 0 },
+        { pos: center - spread * 0.65, alpha: peak * 0.22 },
+        { pos: center - w * 0.5, alpha: peak * 0.72 },
+        { pos: center, alpha: peak },
+        { pos: center + w * 0.5, alpha: peak * 0.72 },
+        { pos: center + spread * 0.65, alpha: peak * 0.22 },
+        { pos: center + spread, alpha: 0 }
+      ];
     }
+
+    let rawStops = makeBarStops(posPct, halfW, soft, peakAlpha);
+
+    if (glareCfg.dualBar) {
+      const off = glareCfg.dualBarOffset || 26;
+      const secCenter = posPct + off;
+      const secStops = makeBarStops(secCenter, halfW * 0.55, soft * 0.75, peakAlpha * 0.38);
+      rawStops = rawStops.concat(secStops);
+    }
+
+    // Sort strictly in ascending position order to prevent any CSS zero-distance clamp lines
+    rawStops.sort((a, b) => a.pos - b.pos);
+
+    // Filter adjacent duplicate positions to keep gradient mathematically clean
+    const formatted = [];
+    let lastPos = -9999;
+    for (const stop of rawStops) {
+      const p = Math.round(stop.pos * 10) / 10;
+      if (p <= lastPos) continue;
+      lastPos = p;
+      formatted.push(`rgba(${tint}, ${stop.alpha.toFixed(3)}) ${p}%`);
+    }
+
+    return `linear-gradient(${angle},
+      ${formatted.join(',\n      ')}
+    )`;
   }
 
   // ----------------------------------------------------
@@ -166,6 +202,11 @@
       this.currentY = 0;
       this.hasBeenMoved = false;
 
+      // Dynamic Glare Physics State (Smooth liquid vinyl lerp)
+      this.currentGlarePos = globalCfg.glare.restPosition || 50;
+      this.targetGlarePos = globalCfg.glare.restPosition || 50;
+      this.mouseGlareBias = 0;
+
       // Hierarchy: Tier 1 (Sticker-on-Sticker)
       this.parentSticker = null;
       this.childrenStickers = [];
@@ -185,6 +226,7 @@
 
       // Drag interaction state
       this.isPointerActive = false;
+      this.activePointerId = null;
       this.isDraggingMode = false;
       this.startPointerX = 0;
       this.startPointerY = 0;
@@ -202,7 +244,11 @@
 
       // Resting visual state
       this.updatePeelStateVisuals(false);
-      this.updateHighlightPosition(0, 0);
+
+      // Initial resting glare render
+      if (this.glintEl) {
+        this.glintEl.style.background = getGlossyGradient(globalCfg.glare.restPosition || 50, globalCfg.glare);
+      }
 
       // Bind tactile pointer events
       this.bindPointerEvents();
@@ -323,18 +369,24 @@
       this.peelOverlayEl.className = `sticker-peel-overlay peel-state-${effectiveState}`;
     }
 
-    updateHighlightPosition(normX, normY) {
-      const angleRad = (globalCfg.gloss.angle + 90) * (Math.PI / 180);
-      const diagVal = (normX * Math.cos(angleRad) + normY * Math.sin(angleRad));
-      const diagPos = 50 + (diagVal * 48);
+    // ----------------------------------------------------
+    // GLOSSY VINYL GLARE RENDERER (LERP SMOOTHING - ZERO JUMPS/FREEZING)
+    // ----------------------------------------------------
+    setTargetGlare(targetPct) {
+      this.targetGlarePos = Math.max(5, Math.min(95, targetPct));
+      StickerEngine.requestGlareTick();
+    }
 
-      const normDist = Math.min(1.25, Math.abs(diagVal));
-      const falloff = Math.max(0, 1 - Math.pow(normDist / 1.15, 2.2));
-      const effectiveOpacity = globalCfg.gloss.opacity * falloff;
+    renderGlareFrame() {
+      if (!this.glintEl) return false;
 
-      if (this.glintEl) {
-        this.glintEl.style.background = getGlossyGradient(diagPos, globalCfg.gloss);
-      }
+      const diff = this.targetGlarePos - this.currentGlarePos;
+      const smoothing = globalCfg.glare.smoothing || 0.12;
+
+      this.currentGlarePos += diff * smoothing;
+      this.glintEl.style.background = getGlossyGradient(this.currentGlarePos, globalCfg.glare);
+
+      return Math.abs(diff) > 0.05;
     }
 
     // ----------------------------------------------------
@@ -449,12 +501,16 @@
     }
 
     // ----------------------------------------------------
-    // TACTILE POINTER DRAG & TAP BINDING
+    // TACTILE POINTER DRAG & TAP BINDING (SINGLE-POINTER LOCK)
     // ----------------------------------------------------
     bindPointerEvents() {
       this.rootEl.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
+        // Multi-touch lock: if an active pointer interaction is already in progress, ignore secondary touches!
+        if (this.isPointerActive) return;
+
         this.isPointerActive = true;
+        this.activePointerId = e.pointerId;
         this.isDraggingMode = false;
 
         try { this.rootEl.setPointerCapture(e.pointerId); } catch(err) {}
@@ -474,7 +530,7 @@
         }
 
         const onMove = (ev) => {
-          if (!this.isPointerActive) return;
+          if (!this.isPointerActive || ev.pointerId !== this.activePointerId) return;
           const dx = ev.clientX - this.startPointerX;
           const dy = ev.clientY - this.startPointerY;
           const dist = Math.hypot(dx, dy);
@@ -502,23 +558,42 @@
             const nextY = this.originY + dy;
             this.updatePosition(nextX, nextY);
 
-            if (globalCfg.glare.mouseTracking) {
-              const normX = Math.max(-1.1, Math.min(1.1, (ev.clientX / window.innerWidth - 0.5) * 2));
-              const normY = Math.max(-1.1, Math.min(1.1, (ev.clientY / window.innerHeight - 0.5) * 2));
-              this.updateHighlightPosition(normX, normY);
+            // Dynamic light sweep as sticker travels across the desk
+            if (globalCfg.glare.enabled !== false) {
+              const angleRad = ((globalCfg.glare.angle != null ? globalCfg.glare.angle : -135) + 90) * (Math.PI / 180);
+              const multiplier = globalCfg.glare.multiplier != null ? globalCfg.glare.multiplier : 1.5;
+              const rest = globalCfg.glare.restPosition || 50;
+
+              const normX = ((ev.clientX / window.innerWidth) - 0.5) * 2;
+              const normY = ((ev.clientY / window.innerHeight) - 0.5) * 2;
+              const proj = (normX * Math.cos(angleRad) + normY * Math.sin(angleRad));
+              const target = rest + (proj * 42 * multiplier);
+
+              this.setTargetGlare(target);
+              for (const child of this.childrenStickers) {
+                child.setTargetGlare(target);
+              }
             }
           }
         };
 
         const onUp = (ev) => {
-          if (!this.isPointerActive) return;
+          if (!this.isPointerActive || ev.pointerId !== this.activePointerId) return;
           this.isPointerActive = false;
+          this.activePointerId = null;
           document.body.classList.remove('is-dragging');
 
           try { this.rootEl.releasePointerCapture(ev.pointerId); } catch(err) {}
           window.removeEventListener('pointermove', onMove);
           window.removeEventListener('pointerup', onUp);
           window.removeEventListener('pointercancel', onUp);
+
+          // Smoothly glide reflection back to resting light position
+          const rest = globalCfg.glare.restPosition || 50;
+          this.setTargetGlare(rest);
+          for (const child of this.childrenStickers) {
+            child.setTargetGlare(rest);
+          }
 
           // CASE 1: CLICK / TAP (<5px movement) -> TOGGLE SLEEP/WAKE!
           if (!this.isDraggingMode) {
@@ -604,6 +679,7 @@
     stickers: new Map(),
     resizeTimer: null,
     lastIsTwoCol: typeof window !== 'undefined' ? (window.innerWidth >= 768) : true,
+    lastWindowWidth: typeof window !== 'undefined' ? window.innerWidth : 1024,
 
     init() {
       this.applyCSSVariables();
@@ -626,6 +702,11 @@
       this.bindWindowResize();
       this.initResizeObserver();
       this.updateCompoundState();
+
+      // Start auto-loop specular sweep if enabled
+      if (this.isAutoLoopActive()) {
+        this.requestGlareTick();
+      }
     },
 
     applyCSSVariables() {
@@ -645,9 +726,9 @@
       rootStyle.setProperty('--peel-scale', globalCfg.work.peel.scale);
       rootStyle.setProperty('--peel-rotate', `${globalCfg.work.peel.rotation}deg`);
 
-      rootStyle.setProperty('--gloss-angle', `${globalCfg.gloss.angle}deg`);
-      rootStyle.setProperty('--sheen-opacity', globalCfg.gloss.opacity);
-      rootStyle.setProperty('--sheen-blend', globalCfg.gloss.blendMode);
+      rootStyle.setProperty('--gloss-angle', `${globalCfg.glare.angle != null ? globalCfg.glare.angle : -135}deg`);
+      rootStyle.setProperty('--sheen-opacity', globalCfg.glare.intensity != null ? globalCfg.glare.intensity : 0.65);
+      rootStyle.setProperty('--sheen-blend', globalCfg.glare.blendMode || 'overlay');
     },
 
     // ----------------------------------------------------
@@ -749,6 +830,15 @@
     // ----------------------------------------------------
     bindWindowResize() {
       const handleResize = () => {
+        const currentWidth = window.innerWidth;
+        // On mobile devices, vertical scrolling causes the browser URL bar to collapse/expand.
+        // This fires window.resize and visualViewport.resize with a changed height, but IDENTICAL width.
+        // If width hasn't changed, ignore to prevent stickers from jumping or shifting while scrolling!
+        if (Math.abs(currentWidth - this.lastWindowWidth) < 2) {
+          return;
+        }
+        this.lastWindowWidth = currentWidth;
+
         // Suppress CSS transitions during resize / Ctrl-zoom so corner peel stays 100% locked
         document.body.classList.add('is-resizing');
         clearTimeout(this.resizeEndTimer);
@@ -930,18 +1020,171 @@
       }
     },
 
+    // ----------------------------------------------------
+    // GLOBAL GLARE TICKER & MOTION TRACKING (AUTO-LOOP READY)
+    // ----------------------------------------------------
+    isGlareTicking: false,
+    autoLoopTime: 0,
+    lastFrameTime: 0,
+
+    isAutoLoopActive() {
+      return Boolean(
+        globalCfg.glare &&
+        globalCfg.glare.enabled !== false &&
+        globalCfg.glare.autoLoop &&
+        globalCfg.glare.autoLoop.enabled
+      );
+    },
+
+    requestGlareTick() {
+      if (this.isGlareTicking) return;
+      this.isGlareTicking = true;
+      this.lastFrameTime = performance.now();
+
+      const tick = (now) => {
+        const dt = Math.min(0.1, (now - (this.lastFrameTime || now)) / 1000);
+        this.lastFrameTime = now;
+
+        const autoLoopActive = this.isAutoLoopActive();
+
+        if (autoLoopActive) {
+          const speed = globalCfg.glare.autoLoop.speed != null ? globalCfg.glare.autoLoop.speed : 1.0;
+          const range = globalCfg.glare.autoLoop.range != null ? globalCfg.glare.autoLoop.range : 36;
+          const multiplier = globalCfg.glare.multiplier != null ? globalCfg.glare.multiplier : 1.5;
+          const rest = globalCfg.glare.restPosition || 50;
+
+          // Advance loop time smoothly with sinusoidal cadence
+          this.autoLoopTime += dt * 1.8 * speed;
+
+          for (const sticker of this.stickers.values()) {
+            if (sticker.isDraggingMode) continue; // Direct tactile drag has precedence
+
+            // Spatial phase offset based on physical screen X position
+            // Left stickers catch the studio light slightly ahead of right stickers!
+            const rect = sticker.rootEl.getBoundingClientRect();
+            const screenFraction = (rect.left + rect.width / 2) / Math.max(1, window.innerWidth);
+            const phase = (screenFraction - 0.5) * 1.2;
+
+            // Harmonic sweep across sticker surface
+            const sweep = Math.sin(this.autoLoopTime - phase) * range * multiplier;
+
+            // Interactive mouse perspective bias (if cursor is moving)
+            const mouseBias = sticker.mouseGlareBias || 0;
+            const target = Math.max(5, Math.min(95, rest + sweep + mouseBias));
+
+            sticker.targetGlarePos = target;
+          }
+        }
+
+        let keepTicking = false;
+        for (const sticker of this.stickers.values()) {
+          const needsMore = sticker.renderGlareFrame();
+          if (needsMore) keepTicking = true;
+        }
+
+        if (autoLoopActive || keepTicking) {
+          requestAnimationFrame(tick);
+        } else {
+          this.isGlareTicking = false;
+        }
+      };
+
+      requestAnimationFrame(tick);
+    },
+
     bindGlobalMotion() {
-      // Gyroscope response on mobile
+      const angleRad = ((globalCfg.glare.angle != null ? globalCfg.glare.angle : -135) + 90) * (Math.PI / 180);
+      const multiplier = globalCfg.glare.multiplier != null ? globalCfg.glare.multiplier : 1.5;
+      const rest = globalCfg.glare.restPosition || 50;
+
+      // 1. Mouse Tracking across desk
+      if (globalCfg.glare.mouseTracking) {
+        window.addEventListener('pointermove', (e) => {
+          const clientX = e.clientX;
+          const clientY = e.clientY;
+
+          for (const sticker of this.stickers.values()) {
+            if (sticker.isDraggingMode) continue;
+
+            const rect = sticker.rootEl.getBoundingClientRect();
+            const stickerCenterX = rect.left + rect.width / 2;
+            const stickerCenterY = rect.top + rect.height / 2;
+
+            // Normalized vector relative to sticker center
+            const dx = (clientX - stickerCenterX) / (window.innerWidth * 0.5);
+            const dy = (clientY - stickerCenterY) / (window.innerHeight * 0.5);
+
+            // Project onto the glare travel axis perpendicular to the glare angle
+            const proj = (dx * Math.cos(angleRad) + dy * Math.sin(angleRad));
+
+            if (this.isAutoLoopActive()) {
+              // Mouse gently biases the sweeping light beam perspective
+              sticker.mouseGlareBias = proj * 20 * multiplier;
+            } else {
+              // Standard manual mode
+              const target = rest + (proj * 42 * multiplier);
+              sticker.setTargetGlare(target);
+            }
+          }
+        }, { passive: true });
+
+        // When mouse leaves the window, smoothly return to resting position
+        window.addEventListener('pointerleave', () => {
+          for (const sticker of this.stickers.values()) {
+            sticker.mouseGlareBias = 0;
+            if (!this.isAutoLoopActive()) {
+              sticker.setTargetGlare(rest);
+            }
+          }
+        });
+      }
+
+      // 2. Mobile Gyroscope with smooth lerp
       if (globalCfg.glare.gyroscope && window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', (e) => {
           if (e.gamma == null || e.beta == null) return;
           const normX = Math.max(-1.1, Math.min(1.1, (e.gamma / 30)));
           const normY = Math.max(-1.1, Math.min(1.1, ((e.beta - 35) / 30)));
 
-          for (const s of this.stickers.values()) {
-            s.updateHighlightPosition(normX, normY);
+          const proj = (normX * Math.cos(angleRad) + normY * Math.sin(angleRad));
+
+          if (this.isAutoLoopActive()) {
+            for (const s of this.stickers.values()) {
+              s.mouseGlareBias = proj * 20 * multiplier;
+            }
+          } else {
+            const target = rest + (proj * 42 * multiplier);
+            for (const s of this.stickers.values()) {
+              s.setTargetGlare(target);
+            }
           }
         }, { passive: true });
+      }
+    },
+
+    // Runtime controls for test / debugging
+    setAutoLoop(enabled, speed, range) {
+      if (!globalCfg.glare.autoLoop) {
+        globalCfg.glare.autoLoop = { enabled: false, speed: 1.0, range: 36 };
+      }
+      if (typeof enabled === 'boolean') globalCfg.glare.autoLoop.enabled = enabled;
+      if (typeof speed === 'number') globalCfg.glare.autoLoop.speed = speed;
+      if (typeof range === 'number') globalCfg.glare.autoLoop.range = range;
+      if (this.isAutoLoopActive()) {
+        this.requestGlareTick();
+      }
+    },
+
+    setGlareMultiplier(val) {
+      if (typeof val === 'number') {
+        globalCfg.glare.multiplier = val;
+      }
+    },
+
+    setGlareIntensity(val) {
+      if (typeof val === 'number') {
+        globalCfg.glare.intensity = val;
+        document.documentElement.style.setProperty('--sheen-opacity', val);
       }
     }
   };
