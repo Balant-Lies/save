@@ -15,6 +15,88 @@
   // Read configuration with fallback safety
   const rawCfg = (window.stickerProps) || (window.CardConfig && window.CardConfig.stickerProps) || {};
 
+  const defaultGloss = {
+    enabled: true,
+    tilt: {
+      enabled: false,
+      maxTilt: 20,
+      multX: 1,
+      multY: 1,
+      invX: false,
+      invY: false,
+      lockX: false,
+      lockY: false,
+      smoothing: 0.1,
+      perspective: 900
+    },
+    specular: {
+      enabled: true,
+      intensity: 0.28,
+      size: 80,
+      falloff: 0.84,
+      travel: 44,
+      color: "golden"
+    },
+    fresnel: {
+      enabled: true,
+      intensity: 0.4,
+      exponent: 3,
+      rimWidth: 20
+    },
+    environment: {
+      enabled: true,
+      intensity: 0.25,
+      blur: 12,
+      preset: "studio"
+    },
+    surface: {
+      washout: true,
+      washoutStrength: 0.15,
+      iridescence: false,
+      iridescenceStrength: 0.08
+    },
+    backlight: {
+      enabled: false,
+      brightness: 0.74,
+      contrast: 1.1,
+      saturation: 1.5,
+      glowIntensity: 0.6,
+      glowBlur: 38,
+      color: "cool"
+    },
+    input: {
+      source: "auto",
+      gyroSensitivity: 1.5,
+      mouseSensitivity: 1
+    },
+    idle: {
+      enabled: true,
+      speed: 0.8,
+      amplitude: 0.35,
+      tilt: false
+    },
+    worldLight: {
+      enabled: true,
+      x: 0.5,
+      y: 0.25,
+      parallax: 0.45
+    }
+  };
+
+  const rawGloss = rawCfg.gloss || rawCfg.glare || {};
+  const mergedGloss = {
+    enabled: rawGloss.enabled !== false,
+    tilt: Object.assign({}, defaultGloss.tilt, rawGloss.tilt || {}),
+    specular: Object.assign({}, defaultGloss.specular, rawGloss.specular || {}),
+    fresnel: Object.assign({}, defaultGloss.fresnel, rawGloss.fresnel || {}),
+    environment: Object.assign({}, defaultGloss.environment, rawGloss.environment || {}),
+    surface: Object.assign({}, defaultGloss.surface, rawGloss.surface || {}),
+    backlight: Object.assign({}, defaultGloss.backlight, rawGloss.backlight || {}),
+    input: Object.assign({}, defaultGloss.input, rawGloss.input || {}),
+    idle: Object.assign({}, defaultGloss.idle, rawGloss.idle || {}),
+    worldLight: Object.assign({}, defaultGloss.worldLight, rawGloss.worldLight || {})
+  };
+
   const globalCfg = {
     scale: rawCfg.scale != null ? rawCfg.scale : 0.6,
     physics: Object.assign({
@@ -26,17 +108,8 @@
       shadowRestY: 16,
       shadowRestBlur: 28
     }, rawCfg.physics || {}),
-    gloss: Object.assign({
-      style: 'studio',
-      angle: -140,
-      opacity: 0.45,
-      blendMode: 'overlay',
-      tint: '255, 255, 255'
-    }, rawCfg.gloss || {}),
-    glare: Object.assign({
-      mouseTracking: false,
-      gyroscope: true
-    }, rawCfg.glare || {}),
+    gloss: mergedGloss,
+    get glare() { return this.gloss; },
     work: Object.assign({
       id: 'work',
       name: 'Work CRT',
@@ -77,31 +150,180 @@
   };
 
   // ----------------------------------------------------
-  // SPECULAR GLOSS SHEEN GENERATOR
+  // PHYSICALLY-BASED OPTICAL GLOSS & LIGHTING PRESETS
+  // Derived directly from sticker-lab.html & sticker-gloss-config.json
+  // Strictly 2D on-screen simulation (no CSS 3D transforms applied)
   // ----------------------------------------------------
-  function getGlossyGradient(posPct, glossCfg) {
-    const angle = `${glossCfg.angle}deg`;
-    const tint = glossCfg.tint || '255, 255, 255';
-    const style = glossCfg.style || 'studio';
+  const LIGHT_COLORS = {
+    warm:    { core: [255, 248, 235], edge: [255, 235, 210] },
+    cool:    { core: [235, 240, 255], edge: [210, 220, 255] },
+    neutral: { core: [255, 255, 255], edge: [240, 240, 240] },
+    golden:  { core: [255, 230, 180], edge: [255, 210, 140] }
+  };
 
-    if (style === 'studio') {
-      const p1 = (posPct - 9).toFixed(1);
-      const p2 = (posPct + 9).toFixed(1);
-      return `linear-gradient(${angle},
-        transparent calc(${p1}% - 14%),
-        rgba(${tint}, 0.92) ${p1}%,
-        rgba(${tint}, 0.92) ${p2}%,
-        transparent calc(${p2}% + 14%)
-      )`;
-    } else {
-      const p1 = (posPct - 15).toFixed(1);
-      const p2 = (posPct + 15).toFixed(1);
-      return `linear-gradient(${angle},
-        transparent calc(${p1}% - 25%),
-        rgba(${tint}, 0.45) ${posPct.toFixed(1)}%,
-        transparent calc(${p2}% + 25%)
-      )`;
+  const ENV_PRESETS = {
+    studio: (nx, ny) => {
+      const cx = 50 + nx * 20;
+      const cy = 30 + ny * 15;
+      return `radial-gradient(ellipse 80% 50% at ${cx}% ${cy}%, rgba(255,252,245,0.35) 0%, rgba(255,252,245,0.08) 40%, transparent 70%)`;
+    },
+    window: (nx, ny) => {
+      const cx = 70 + nx * 15;
+      const cy = 25 + ny * 10;
+      return `radial-gradient(ellipse 60% 90% at ${cx}% ${cy}%, rgba(200,220,255,0.3) 0%, rgba(200,220,255,0.05) 50%, transparent 80%)`;
+    },
+    outdoor: (nx, ny) => {
+      const cy = 35 + ny * 15;
+      return `linear-gradient(180deg, rgba(160,200,255,0.2) 0%, transparent ${cy}%, rgba(180,160,130,0.08) 100%)`;
+    },
+    neon: (nx, ny) => {
+      const cx = 50 + nx * 25;
+      const cy = 50 + ny * 25;
+      return `radial-gradient(ellipse 50% 50% at ${cx}% ${cy}%, rgba(255,100,200,0.2) 0%, rgba(100,100,255,0.1) 40%, transparent 70%)`;
     }
+  };
+
+  function fresnelFactor(tiltX, tiltY, maxTilt, frExp) {
+    const tiltMag = Math.sqrt(tiltX * tiltX + tiltY * tiltY);
+    const normAngle = Math.min(tiltMag / (maxTilt || 1), 1);
+    const f0 = 0.04;
+    return f0 + (1 - f0) * Math.pow(normAngle, frExp || 3);
+  }
+
+  function renderSpecular(el, nx, ny, fresnel, cfg) {
+    if (!el) return;
+    if (!cfg || cfg.enabled === false) { el.style.opacity = '0'; return; }
+
+    const colors = LIGHT_COLORS[cfg.color] || LIGHT_COLORS.warm;
+    const travel = cfg.travel != null ? cfg.travel : 40;
+    const rx = 50 - nx * travel;
+    const ry = 50 - ny * travel;
+
+    const size = cfg.size != null ? cfg.size : 80;
+    const fall = cfg.falloff != null ? cfg.falloff : 0.72;
+
+    const mid1 = Math.round(size * fall * 0.3);
+    const mid2 = Math.round(size * fall * 0.7);
+
+    const core = colors.core;
+    const edge = colors.edge;
+
+    el.style.background = `radial-gradient(ellipse ${size}% ${size * 0.85}% at ${rx}% ${ry}%,
+      rgba(${core[0]},${core[1]},${core[2]}, 0.95) 0%,
+      rgba(${core[0]},${core[1]},${core[2]}, 0.7) ${mid1}%,
+      rgba(${edge[0]},${edge[1]},${edge[2]}, 0.3) ${mid2}%,
+      rgba(${edge[0]},${edge[1]},${edge[2]}, 0.05) ${size}%,
+      transparent ${size + 15}%
+    )`;
+
+    const baseOpacity = cfg.intensity != null ? cfg.intensity : 0.01;
+    const fresnelBoost = fresnel * 0.4;
+    el.style.opacity = String(Math.min(1, baseOpacity + fresnelBoost));
+  }
+
+  function renderFresnel(el, nx, ny, fresnel, cfg) {
+    if (!el) return;
+    if (!cfg || cfg.enabled === false) { el.style.opacity = '0'; return; }
+
+    const rimW = cfg.rimWidth != null ? cfg.rimWidth : 20;
+    const leftWeight  = Math.max(0, -nx);
+    const rightWeight = Math.max(0,  nx);
+    const topWeight   = Math.max(0, -ny);
+    const botWeight   = Math.max(0,  ny);
+
+    const base = fresnel * (cfg.intensity != null ? cfg.intensity : 0.4);
+    const lA = (base * (0.3 + leftWeight  * 0.7)).toFixed(3);
+    const rA = (base * (0.3 + rightWeight * 0.7)).toFixed(3);
+    const tA = (base * (0.3 + topWeight   * 0.7)).toFixed(3);
+    const bA = (base * (0.3 + botWeight   * 0.7)).toFixed(3);
+
+    el.style.background = `
+      linear-gradient(90deg,  rgba(255,255,255,${lA}) 0%, transparent ${rimW}%, transparent ${100-rimW}%, rgba(255,255,255,${rA}) 100%),
+      linear-gradient(180deg, rgba(255,255,255,${tA}) 0%, transparent ${rimW}%, transparent ${100-rimW}%, rgba(255,255,255,${bA}) 100%)
+    `;
+    el.style.opacity = '1';
+  }
+
+  function renderEnvReflection(el, nx, ny, cfg) {
+    if (!el) return;
+    if (!cfg || cfg.enabled === false) { el.style.opacity = '0'; return; }
+
+    const presetFn = ENV_PRESETS[cfg.preset] || ENV_PRESETS.studio;
+    el.style.background = presetFn(nx, ny);
+    el.style.opacity = String(cfg.intensity != null ? cfg.intensity : 0.25);
+    el.style.filter = (cfg.blur && cfg.blur > 0) ? `blur(${cfg.blur}px)` : 'none';
+  }
+
+  function renderWashout(el, fresnel, cfg) {
+    if (!el) return;
+    if (!cfg || cfg.washout === false) { el.style.opacity = '0'; return; }
+    el.style.opacity = String(fresnel * (cfg.washoutStrength != null ? cfg.washoutStrength : 0.1));
+  }
+
+  function renderIridescence(el, nx, ny, fresnel, cfg) {
+    if (!el) return;
+    if (!cfg || !cfg.iridescence) { el.style.opacity = '0'; return; }
+
+    const angle = Math.atan2(ny, nx) * (180 / Math.PI);
+    const hue1 = (angle + 180) % 360;
+    const hue2 = (hue1 + 60) % 360;
+    const hue3 = (hue1 + 180) % 360;
+
+    const cx = 50 - nx * 30;
+    const cy = 50 - ny * 30;
+
+    el.style.background = `
+      radial-gradient(ellipse 70% 70% at ${cx}% ${cy}%,
+        hsla(${hue1}, 100%, 70%, 0.3) 0%,
+        hsla(${hue2}, 80%, 60%, 0.15) 40%,
+        hsla(${hue3}, 70%, 50%, 0.05) 70%,
+        transparent 100%
+      )
+    `;
+    el.style.opacity = String(fresnel * (cfg.iridescenceStrength != null ? cfg.iridescenceStrength : 0.08) * 4);
+  }
+
+  // Fallback linear sheen generator
+  function getGlossyGradient(posPct, glareCfg) {
+    if (!glareCfg || glareCfg.enabled === false) return 'none';
+    const angle = `${glareCfg.angle != null ? glareCfg.angle : -135}deg`;
+    const tint = glareCfg.tint || '255, 255, 255';
+    const halfW = (glareCfg.barWidth || 20) / 2;
+    const soft = glareCfg.softness || 25;
+    const peakAlpha = 0.95;
+
+    function makeBarStops(center, w, s, peak) {
+      const spread = w + s;
+      return [
+        { pos: center - spread, alpha: 0 },
+        { pos: center - spread * 0.65, alpha: peak * 0.22 },
+        { pos: center - w * 0.5, alpha: peak * 0.72 },
+        { pos: center, alpha: peak },
+        { pos: center + w * 0.5, alpha: peak * 0.72 },
+        { pos: center + spread * 0.65, alpha: peak * 0.22 },
+        { pos: center + spread, alpha: 0 }
+      ];
+    }
+
+    let rawStops = makeBarStops(posPct, halfW, soft, peakAlpha);
+    if (glareCfg.dualBar) {
+      const off = glareCfg.dualBarOffset || 26;
+      const secCenter = posPct + off;
+      const secStops = makeBarStops(secCenter, halfW * 0.55, soft * 0.75, peakAlpha * 0.38);
+      rawStops = rawStops.concat(secStops);
+    }
+    rawStops.sort((a, b) => a.pos - b.pos);
+    const formatted = [];
+    let lastPos = -9999;
+    for (const stop of rawStops) {
+      const p = Math.round(stop.pos * 10) / 10;
+      if (p <= lastPos) continue;
+      lastPos = p;
+      formatted.push(`rgba(${tint}, ${stop.alpha.toFixed(3)}) ${p}%`);
+    }
+    return `linear-gradient(${angle},
+      ${formatted.join(',\n      ')}
+    )`;
   }
 
   // ----------------------------------------------------
@@ -153,8 +375,15 @@
       // Sub-elements
       this.bodyEl = rootEl.querySelector('.sticker-body');
       this.artWrapEl = rootEl.querySelector('.sticker-art-wrap');
-      this.glintEl = rootEl.querySelector('.sticker-gloss-glint');
       this.peelOverlayEl = rootEl.querySelector('.sticker-peel-overlay');
+
+      // PBR Gloss Sub-Layers
+      this.highlightLayer = rootEl.querySelector('.sticker-highlight-layer');
+      this.lSpecular = rootEl.querySelector('.specular-hotspot');
+      this.lFresnel = rootEl.querySelector('.fresnel-rim');
+      this.lEnv = rootEl.querySelector('.env-reflect');
+      this.lWashout = rootEl.querySelector('.washout');
+      this.lIridescence = rootEl.querySelector('.iridescence');
 
       // State tracking (supports inactive by default)
       this.isSleeping = config.initialSleeping === true || rootEl.classList.contains('is-sleeping');
@@ -165,6 +394,17 @@
       this.currentX = 0;
       this.currentY = 0;
       this.hasBeenMoved = false;
+
+      // Dynamic Gloss Physics State (Optical vectors, strictly 2D flat on screen)
+      this.tgtTX = 0; this.tgtTY = 0;
+      this.curTX = 0; this.curTY = 0;
+      this.tgtNX = 0; this.tgtNY = 0;
+      this.curNX = 0; this.curNY = 0;
+      this.lastRenderedNX = null;
+      this.lastRenderedNY = null;
+      this.currentGlarePos = 50;
+      this.targetGlarePos = 50;
+      this.mouseGlareBias = 0;
 
       // Hierarchy: Tier 1 (Sticker-on-Sticker)
       this.parentSticker = null;
@@ -185,6 +425,7 @@
 
       // Drag interaction state
       this.isPointerActive = false;
+      this.activePointerId = null;
       this.isDraggingMode = false;
       this.startPointerX = 0;
       this.startPointerY = 0;
@@ -202,7 +443,19 @@
 
       // Resting visual state
       this.updatePeelStateVisuals(false);
-      this.updateHighlightPosition(0, 0);
+
+      // Initial resting PBR gloss render anchored to global overhead light source
+      const initParallax = StickerEngine.computeWorldParallax(this, globalCfg.gloss);
+      const maxTilt = (globalCfg.gloss && globalCfg.gloss.tilt && globalCfg.gloss.tilt.maxTilt) || 20;
+      this.tgtNX = Math.max(-1, Math.min(1, initParallax.offsetX));
+      this.tgtNY = Math.max(-1, Math.min(1, initParallax.offsetY));
+      this.curNX = this.tgtNX;
+      this.curNY = this.tgtNY;
+      this.tgtTX = this.tgtNX * maxTilt;
+      this.tgtTY = this.tgtNY * maxTilt;
+      this.curTX = this.tgtTX;
+      this.curTY = this.tgtTY;
+      this.renderGlossFrame(globalCfg.gloss);
 
       // Bind tactile pointer events
       this.bindPointerEvents();
@@ -323,18 +576,67 @@
       this.peelOverlayEl.className = `sticker-peel-overlay peel-state-${effectiveState}`;
     }
 
-    updateHighlightPosition(normX, normY) {
-      const angleRad = (globalCfg.gloss.angle + 90) * (Math.PI / 180);
-      const diagVal = (normX * Math.cos(angleRad) + normY * Math.sin(angleRad));
-      const diagPos = 50 + (diagVal * 48);
+    // ----------------------------------------------------
+    // PHYSICALLY-BASED OPTICAL GLOSS RENDERER (PBR OPTICS)
+    // Renders specular hotspot, fresnel rim, env reflection,
+    // washout, and iridescence without applying 3D tilt
+    // ----------------------------------------------------
+    setTargetGlare(targetPct) {
+      const nx = ((targetPct - 50) / 50);
+      this.tgtNX = Math.max(-1, Math.min(1, nx));
+      const maxTilt = (globalCfg.gloss && globalCfg.gloss.tilt && globalCfg.gloss.tilt.maxTilt) || 20;
+      this.tgtTX = this.tgtNX * maxTilt;
+      StickerEngine.requestGlossTick();
+    }
 
-      const normDist = Math.min(1.25, Math.abs(diagVal));
-      const falloff = Math.max(0, 1 - Math.pow(normDist / 1.15, 2.2));
-      const effectiveOpacity = globalCfg.gloss.opacity * falloff;
+    renderGlareFrame() {
+      return this.renderGlossFrame(globalCfg.gloss);
+    }
 
-      if (this.glintEl) {
-        this.glintEl.style.background = getGlossyGradient(diagPos, globalCfg.gloss);
+    renderGlossFrame(glossCfg) {
+      const cfg = glossCfg || globalCfg.gloss;
+      if (!cfg || cfg.enabled === false) return false;
+
+      const tiltCfg = cfg.tilt || {};
+      const maxTilt = tiltCfg.maxTilt || 20;
+      const sm = this.isDraggingMode ? 0.28 : (tiltCfg.smoothing != null ? tiltCfg.smoothing : 0.1);
+
+      this.curTX += (this.tgtTX - this.curTX) * sm;
+      this.curTY += (this.tgtTY - this.curTY) * sm;
+      this.curNX += (this.tgtNX - this.curNX) * sm;
+      this.curNY += (this.tgtNY - this.curNY) * sm;
+
+      let tx = Math.max(-maxTilt, Math.min(maxTilt, this.curTX));
+      let ty = Math.max(-maxTilt, Math.min(maxTilt, this.curTY));
+      if (tiltCfg.lockX) tx = 0;
+      if (tiltCfg.lockY) ty = 0;
+
+      let nx = Math.max(-1, Math.min(1, this.curNX));
+      let ny = Math.max(-1, Math.min(1, this.curNY));
+
+      const diff = Math.abs(this.tgtNX - this.curNX) + Math.abs(this.tgtNY - this.curNY);
+      const rNX = Math.round(nx * 200) / 200;
+      const rNY = Math.round(ny * 200) / 200;
+
+      // Skip redundant re-renders if visually unchanged
+      if (rNX === this.lastRenderedNX && rNY === this.lastRenderedNY && diff < 0.001) {
+        return false;
       }
+      this.lastRenderedNX = rNX;
+      this.lastRenderedNY = rNY;
+
+      // Calculate optical Fresnel
+      const frExp = cfg.fresnel ? cfg.fresnel.exponent : 3;
+      const fresnel = fresnelFactor(tx, ty, maxTilt, frExp);
+
+      // Render PBR sub-layers (Notice: NO 3D transform is ever applied to rootEl or bodyEl!)
+      if (this.lSpecular) renderSpecular(this.lSpecular, nx, ny, fresnel, cfg.specular);
+      if (this.lFresnel) renderFresnel(this.lFresnel, nx, ny, fresnel, cfg.fresnel);
+      if (this.lEnv) renderEnvReflection(this.lEnv, nx, ny, cfg.environment);
+      if (this.lWashout) renderWashout(this.lWashout, fresnel, cfg.surface);
+      if (this.lIridescence) renderIridescence(this.lIridescence, nx, ny, fresnel, cfg.surface);
+
+      return diff > 0.001;
     }
 
     // ----------------------------------------------------
@@ -449,12 +751,16 @@
     }
 
     // ----------------------------------------------------
-    // TACTILE POINTER DRAG & TAP BINDING
+    // TACTILE POINTER DRAG & TAP BINDING (SINGLE-POINTER LOCK)
     // ----------------------------------------------------
     bindPointerEvents() {
       this.rootEl.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
+        // Multi-touch lock: if an active pointer interaction is already in progress, ignore secondary touches!
+        if (this.isPointerActive) return;
+
         this.isPointerActive = true;
+        this.activePointerId = e.pointerId;
         this.isDraggingMode = false;
 
         try { this.rootEl.setPointerCapture(e.pointerId); } catch(err) {}
@@ -474,7 +780,7 @@
         }
 
         const onMove = (ev) => {
-          if (!this.isPointerActive) return;
+          if (!this.isPointerActive || ev.pointerId !== this.activePointerId) return;
           const dx = ev.clientX - this.startPointerX;
           const dy = ev.clientY - this.startPointerY;
           const dist = Math.hypot(dx, dy);
@@ -502,23 +808,55 @@
             const nextY = this.originY + dy;
             this.updatePosition(nextX, nextY);
 
-            if (globalCfg.glare.mouseTracking) {
-              const normX = Math.max(-1.1, Math.min(1.1, (ev.clientX / window.innerWidth - 0.5) * 2));
-              const normY = Math.max(-1.1, Math.min(1.1, (ev.clientY / window.innerHeight - 0.5) * 2));
-              this.updateHighlightPosition(normX, normY);
+            // Dynamically recalculate world light highlight in real-time as sticker moves across the desk
+            const p = StickerEngine.computeWorldParallax(this, globalCfg.gloss);
+            const maxTilt = (globalCfg.gloss && globalCfg.gloss.tilt && globalCfg.gloss.tilt.maxTilt) || 20;
+            this.tgtNX = Math.max(-1, Math.min(1, p.offsetX));
+            this.tgtNY = Math.max(-1, Math.min(1, p.offsetY));
+            this.tgtTX = this.tgtNX * maxTilt;
+            this.tgtTY = this.tgtNY * maxTilt;
+            this.renderGlossFrame(globalCfg.gloss);
+
+            // Update attached children's parallax as well
+            for (const child of this.childrenStickers) {
+              const cp = StickerEngine.computeWorldParallax(child, globalCfg.gloss);
+              child.tgtNX = Math.max(-1, Math.min(1, cp.offsetX));
+              child.tgtNY = Math.max(-1, Math.min(1, cp.offsetY));
+              child.tgtTX = child.tgtNX * maxTilt;
+              child.tgtTY = child.tgtNY * maxTilt;
+              child.renderGlossFrame(globalCfg.gloss);
             }
+
+            StickerEngine.requestGlossTick();
           }
         };
 
         const onUp = (ev) => {
-          if (!this.isPointerActive) return;
+          if (!this.isPointerActive || ev.pointerId !== this.activePointerId) return;
           this.isPointerActive = false;
+          this.activePointerId = null;
           document.body.classList.remove('is-dragging');
 
           try { this.rootEl.releasePointerCapture(ev.pointerId); } catch(err) {}
           window.removeEventListener('pointermove', onMove);
           window.removeEventListener('pointerup', onUp);
           window.removeEventListener('pointercancel', onUp);
+
+          // Smoothly glide gloss back to resting world light position based on drop position
+          const dropParallax = StickerEngine.computeWorldParallax(this, globalCfg.gloss);
+          const maxTilt = (globalCfg.gloss && globalCfg.gloss.tilt && globalCfg.gloss.tilt.maxTilt) || 20;
+          this.tgtNX = Math.max(-1, Math.min(1, dropParallax.offsetX));
+          this.tgtNY = Math.max(-1, Math.min(1, dropParallax.offsetY));
+          this.tgtTX = this.tgtNX * maxTilt;
+          this.tgtTY = this.tgtNY * maxTilt;
+          for (const child of this.childrenStickers) {
+            const childParallax = StickerEngine.computeWorldParallax(child, globalCfg.gloss);
+            child.tgtNX = Math.max(-1, Math.min(1, childParallax.offsetX));
+            child.tgtNY = Math.max(-1, Math.min(1, childParallax.offsetY));
+            child.tgtTX = child.tgtNX * maxTilt;
+            child.tgtTY = child.tgtNY * maxTilt;
+          }
+          StickerEngine.requestGlossTick();
 
           // CASE 1: CLICK / TAP (<5px movement) -> TOGGLE SLEEP/WAKE!
           if (!this.isDraggingMode) {
@@ -604,6 +942,7 @@
     stickers: new Map(),
     resizeTimer: null,
     lastIsTwoCol: typeof window !== 'undefined' ? (window.innerWidth >= 768) : true,
+    lastWindowWidth: typeof window !== 'undefined' ? window.innerWidth : 1024,
 
     init() {
       this.applyCSSVariables();
@@ -626,6 +965,9 @@
       this.bindWindowResize();
       this.initResizeObserver();
       this.updateCompoundState();
+
+      // Start PBR gloss simulation / ticker
+      this.requestGlossTick();
     },
 
     applyCSSVariables() {
@@ -645,9 +987,16 @@
       rootStyle.setProperty('--peel-scale', globalCfg.work.peel.scale);
       rootStyle.setProperty('--peel-rotate', `${globalCfg.work.peel.rotation}deg`);
 
-      rootStyle.setProperty('--gloss-angle', `${globalCfg.gloss.angle}deg`);
-      rootStyle.setProperty('--sheen-opacity', globalCfg.gloss.opacity);
-      rootStyle.setProperty('--sheen-blend', globalCfg.gloss.blendMode);
+      rootStyle.setProperty('--gloss-angle', `${globalCfg.glare.angle != null ? globalCfg.glare.angle : -135}deg`);
+      rootStyle.setProperty('--sheen-opacity', globalCfg.glare.intensity != null ? globalCfg.glare.intensity : 0.65);
+      rootStyle.setProperty('--sheen-blend', globalCfg.glare.blendMode || 'overlay');
+
+      if (globalCfg.gloss && globalCfg.gloss.backlight) {
+        const b = globalCfg.gloss.backlight;
+        if (b.brightness != null) rootStyle.setProperty('--sticker-bright', b.brightness);
+        if (b.contrast != null) rootStyle.setProperty('--sticker-contrast', b.contrast);
+        if (b.saturation != null) rootStyle.setProperty('--sticker-sat', b.saturation);
+      }
     },
 
     // ----------------------------------------------------
@@ -749,6 +1098,15 @@
     // ----------------------------------------------------
     bindWindowResize() {
       const handleResize = () => {
+        const currentWidth = window.innerWidth;
+        // On mobile devices, vertical scrolling causes the browser URL bar to collapse/expand.
+        // This fires window.resize and visualViewport.resize with a changed height, but IDENTICAL width.
+        // If width hasn't changed, ignore to prevent stickers from jumping or shifting while scrolling!
+        if (Math.abs(currentWidth - this.lastWindowWidth) < 2) {
+          return;
+        }
+        this.lastWindowWidth = currentWidth;
+
         // Suppress CSS transitions during resize / Ctrl-zoom so corner peel stays 100% locked
         document.body.classList.add('is-resizing');
         clearTimeout(this.resizeEndTimer);
@@ -798,6 +1156,20 @@
             this.resolveAllCollisions();
           }, 80);
         }
+
+        // Refresh world light parallax targets on window geometry change
+        for (const sticker of this.stickers.values()) {
+          if (sticker.isDraggingMode) continue;
+          if (!this.activeInputDevice && !this.isIdleActive()) {
+            const p = this.computeWorldParallax(sticker, globalCfg.gloss);
+            const maxTilt = (globalCfg.gloss && globalCfg.gloss.tilt && globalCfg.gloss.tilt.maxTilt) || 20;
+            sticker.tgtNX = Math.max(-1, Math.min(1, p.offsetX));
+            sticker.tgtNY = Math.max(-1, Math.min(1, p.offsetY));
+            sticker.tgtTX = sticker.tgtNX * maxTilt;
+            sticker.tgtTY = sticker.tgtNY * maxTilt;
+          }
+        }
+        this.requestGlossTick();
       };
 
       window.addEventListener('resize', handleResize);
@@ -930,18 +1302,261 @@
       }
     },
 
+    // ----------------------------------------------------
+    // GLOBAL PBR GLOSS TICKER & GYROSCOPE/MOTION TRACKING
+    // Strictly 2D on-screen simulation (no CSS 3D transforms applied)
+    // Mobile: driven exclusively by gyroscope, zero touch interference
+    // Isolated: dragging one sticker or card never affects another sticker
+    // Optimized: on-demand RAF that pauses when stationary
+    // ----------------------------------------------------
+    isGlossTicking: false,
+    idleTime: 0,
+    lastFrameTime: 0,
+    activeInputDevice: null,
+
+    // ----------------------------------------------------
+    // GLOBAL WORLD LIGHT SPATIAL PARALLAX RESOLVER
+    // Calculates the angular offset from a virtual overhead room light
+    // to the sticker's exact position on screen.
+    // Gives each sticker on the screen natural, physically coherent variation
+    // without random numbers or identical clone-stamped glares.
+    // ----------------------------------------------------
+    computeWorldParallax(sticker, glossCfg) {
+      const g = glossCfg || globalCfg.gloss || {};
+      const wl = g.worldLight || {};
+      if (wl.enabled === false) return { offsetX: 0, offsetY: 0 };
+
+      const lightX = wl.x != null ? wl.x : 0.5;
+      const lightY = wl.y != null ? wl.y : 0.25;
+      const parallax = wl.parallax != null ? wl.parallax : 0.45;
+
+      if (!sticker || !sticker.rootEl) return { offsetX: 0, offsetY: 0 };
+
+      const rect = sticker.rootEl.getBoundingClientRect();
+      const screenX = rect.left + rect.width * 0.5;
+      const screenY = rect.top + rect.height * 0.5;
+      const winW = Math.max(1, window.innerWidth);
+      const winH = Math.max(1, window.innerHeight);
+
+      const normX = screenX / winW;
+      const normY = screenY / winH;
+
+      const offsetX = (normX - lightX) * parallax;
+      const offsetY = (normY - lightY) * parallax;
+
+      return { offsetX, offsetY };
+    },
+
+    isIdleActive() {
+      const g = globalCfg.gloss;
+      return Boolean(g && g.enabled !== false && g.idle && g.idle.enabled);
+    },
+
+    isAutoLoopActive() {
+      return this.isIdleActive();
+    },
+
+    requestGlossTick() {
+      if (this.isGlossTicking) return;
+      this.isGlossTicking = true;
+      this.lastFrameTime = performance.now();
+
+      const tick = (now) => {
+        const dt = Math.min(0.1, (now - (this.lastFrameTime || now)) / 1000);
+        this.lastFrameTime = now;
+
+        const glossCfg = globalCfg.gloss || {};
+        const idleCfg = glossCfg.idle || {};
+        const isIdle = this.isIdleActive();
+
+        if (isIdle && !this.activeInputDevice) {
+          const speed = idleCfg.speed != null ? idleCfg.speed : 0.8;
+          const amp = idleCfg.amplitude != null ? idleCfg.amplitude : 0.35;
+          this.idleTime += dt * speed;
+
+          // Smooth Lissajous pattern from sticker-lab
+          const idleNX = Math.sin(this.idleTime * 0.7) * amp;
+          const idleNY = Math.sin(this.idleTime * 0.5 + 1.2) * amp * 0.7;
+          const maxTilt = (glossCfg.tilt && glossCfg.tilt.maxTilt) || 20;
+
+          for (const sticker of this.stickers.values()) {
+            if (sticker.isDraggingMode || sticker.isPointerActive) continue;
+            const { offsetX, offsetY } = this.computeWorldParallax(sticker, glossCfg);
+            const nx = Math.max(-1, Math.min(1, idleNX + offsetX));
+            const ny = Math.max(-1, Math.min(1, idleNY + offsetY));
+            sticker.tgtNX = nx;
+            sticker.tgtNY = ny;
+            sticker.tgtTX = nx * maxTilt;
+            sticker.tgtTY = ny * maxTilt;
+          }
+        }
+
+        let keepTicking = false;
+        for (const sticker of this.stickers.values()) {
+          const needsMore = sticker.renderGlossFrame(glossCfg);
+          if (needsMore) keepTicking = true;
+        }
+
+        if (isIdle || keepTicking) {
+          requestAnimationFrame(tick);
+        } else {
+          this.isGlossTicking = false;
+        }
+      };
+
+      requestAnimationFrame(tick);
+    },
+
+    requestGlareTick() {
+      this.requestGlossTick();
+    },
+
     bindGlobalMotion() {
-      // Gyroscope response on mobile
-      if (globalCfg.glare.gyroscope && window.DeviceOrientationEvent) {
+      const glossCfg = globalCfg.gloss || {};
+      const inputCfg = glossCfg.input || {};
+      const tiltCfg = glossCfg.tilt || {};
+      const maxTilt = tiltCfg.maxTilt || 20;
+      const multX = tiltCfg.multX || 1;
+      const multY = tiltCfg.multY || 1;
+
+      // 1. Mobile Gyroscope (DeviceOrientation)
+      let gyroBeta = null, gyroGamma = null, gyroCal = false;
+
+      if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', (e) => {
-          if (e.gamma == null || e.beta == null) return;
-          const normX = Math.max(-1.1, Math.min(1.1, (e.gamma / 30)));
-          const normY = Math.max(-1.1, Math.min(1.1, ((e.beta - 35) / 30)));
+          if (inputCfg.source === 'mouse' || inputCfg.source === 'sim') return;
+          if (e.beta === null || e.gamma === null) return;
+
+          if (!gyroCal) {
+            gyroBeta = e.beta;
+            gyroGamma = e.gamma;
+            gyroCal = true;
+          }
+
+          const sens = inputCfg.gyroSensitivity || 1.5;
+          let dg = (e.gamma - gyroGamma) * sens;
+          let db = (e.beta - gyroBeta) * sens;
+
+          let rawNX = dg / 45;
+          let rawNY = db / 45;
+
+          this.activeInputDevice = 'gyro';
 
           for (const s of this.stickers.values()) {
-            s.updateHighlightPosition(normX, normY);
+            if (s.isDraggingMode || s.isPointerActive) continue;
+            const { offsetX, offsetY } = this.computeWorldParallax(s, glossCfg);
+            let nx = Math.max(-1, Math.min(1, rawNX + offsetX));
+            let ny = Math.max(-1, Math.min(1, rawNY + offsetY));
+
+            let tiltX = nx * maxTilt * multX;
+            let tiltY = ny * maxTilt * multY;
+            if (tiltCfg.invX) tiltX *= -1;
+            if (tiltCfg.invY) tiltY *= -1;
+
+            s.tgtTX = tiltX;
+            s.tgtTY = tiltY;
+            s.tgtNX = nx;
+            s.tgtNY = ny;
           }
+          this.requestGlossTick();
         }, { passive: true });
+      }
+
+      // 2. Desktop Mouse Hovering (Completely disabled on touch, zero interference during dragging)
+      window.addEventListener('pointermove', (e) => {
+        if (e.pointerType === 'touch') return;
+        if (inputCfg.source === 'gyro' || inputCfg.source === 'sim' || inputCfg.mouseSensitivity === 0 || inputCfg.mouseTracking === false) return;
+        if (document.body.classList.contains('is-dragging') || document.body.classList.contains('is-peeling')) return;
+
+        const sens = inputCfg.mouseSensitivity || 1;
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+
+        for (const sticker of this.stickers.values()) {
+          if (sticker.isDraggingMode || sticker.isPointerActive) continue;
+
+          const rect = sticker.rootEl.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+
+          const rawNX = ((e.clientX - centerX) / (winW * 0.5)) * sens;
+          const rawNY = ((e.clientY - centerY) / (winH * 0.5)) * sens;
+
+          const { offsetX, offsetY } = this.computeWorldParallax(sticker, glossCfg);
+          let nx = Math.max(-1, Math.min(1, rawNX + offsetX));
+          let ny = Math.max(-1, Math.min(1, rawNY + offsetY));
+
+          let tiltX = nx * maxTilt * multX;
+          let tiltY = ny * maxTilt * multY;
+          if (tiltCfg.invX) tiltX *= -1;
+          if (tiltCfg.invY) tiltY *= -1;
+
+          sticker.tgtTX = tiltX;
+          sticker.tgtTY = tiltY;
+          sticker.tgtNX = nx;
+          sticker.tgtNY = ny;
+        }
+
+        this.activeInputDevice = 'mouse';
+        this.requestGlossTick();
+      }, { passive: true });
+
+      window.addEventListener('pointerleave', () => {
+        if (this.activeInputDevice === 'mouse') {
+          this.activeInputDevice = null;
+          for (const sticker of this.stickers.values()) {
+            const { offsetX, offsetY } = this.computeWorldParallax(sticker, glossCfg);
+            const maxTilt = (glossCfg.tilt && glossCfg.tilt.maxTilt) || 20;
+            const nx = Math.max(-1, Math.min(1, offsetX));
+            const ny = Math.max(-1, Math.min(1, offsetY));
+            sticker.tgtTX = nx * maxTilt;
+            sticker.tgtTY = ny * maxTilt;
+            sticker.tgtNX = nx;
+            sticker.tgtNY = ny;
+          }
+          this.requestGlossTick();
+        }
+      });
+    },
+
+    // Runtime controls for test / debugging
+    setAutoLoop(enabled, speed, range) {
+      if (!globalCfg.gloss.idle) {
+        globalCfg.gloss.idle = { enabled: false, speed: 0.8, amplitude: 0.35, tilt: false };
+      }
+      if (typeof enabled === 'boolean') globalCfg.gloss.idle.enabled = enabled;
+      if (typeof speed === 'number') globalCfg.gloss.idle.speed = speed;
+      if (typeof range === 'number') globalCfg.gloss.idle.amplitude = range / 100;
+      if (this.isIdleActive()) {
+        this.requestGlossTick();
+      }
+    },
+
+    setGlareMultiplier(val) {
+      if (typeof val === 'number') {
+        if (globalCfg.gloss.tilt) globalCfg.gloss.tilt.multX = val;
+      }
+    },
+
+    setGlareIntensity(val) {
+      if (typeof val === 'number') {
+        if (globalCfg.gloss.specular) globalCfg.gloss.specular.intensity = val;
+        document.documentElement.style.setProperty('--sheen-opacity', val);
+        this.requestGlossTick();
+      }
+    },
+
+    setGlossPreset(presetName) {
+      if (globalCfg.gloss.environment) {
+        globalCfg.gloss.environment.preset = presetName;
+        this.requestGlossTick();
+      }
+    },
+
+    setGlossColor(colorName) {
+      if (globalCfg.gloss.specular) {
+        globalCfg.gloss.specular.color = colorName;
+        this.requestGlossTick();
       }
     }
   };

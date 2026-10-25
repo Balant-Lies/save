@@ -23,6 +23,11 @@
   /* Global Sticker Scale */
   --sticker-scale: 1.0;
 
+  /* Sticker Base Artwork Exposure & Saturation (From sticker-gloss-config (1).json) */
+  --sticker-bright: 0.74;
+  --sticker-contrast: 1.1;
+  --sticker-sat: 1.5;
+
   /* Corner Peel Affordance Offset & Dynamics */
   --peel-x: 71px;
   --peel-y: 67px;
@@ -102,6 +107,7 @@ body.is-dragging .sticker-root .sticker-body {
   height: 100%;
   object-fit: contain;
   pointer-events: none;
+  filter: brightness(var(--sticker-bright, 0.74)) contrast(var(--sticker-contrast, 1.1)) saturate(var(--sticker-sat, 1.5));
 }
 
 /* ----------------------------------------------------
@@ -121,9 +127,7 @@ body.is-dragging .sticker-root .sticker-body {
   -webkit-mask-position: center;
   mask-position: center;
 
-  mix-blend-mode: var(--sheen-blend, overlay);
-  opacity: var(--sheen-opacity, 0.45);
-  transition: opacity 0.12s ease-out;
+  z-index: 2;
 }
 
 #stickerRoot .sticker-highlight-layer {
@@ -136,26 +140,60 @@ body.is-dragging .sticker-root .sticker-body {
   mask-image: url('../svg/circlesticker.svg');
 }
 
-/* Ambient Gloss Resin Dome (Clear-coat depth) */
-.sticker-gloss-dome {
+/* Layer 1: Specular hotspot — the main "light reflection blob" */
+.specular-hotspot {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(ellipse 95% 75% at 50% 18%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.05) 45%, transparent 75%);
-  pointer-events: none;
+  border-radius: 12px;
   mix-blend-mode: screen;
-  opacity: 0.85;
+  opacity: 0;
+  pointer-events: none;
+  will-change: background, opacity;
 }
 
-/* Dynamic Gloss Specular Glint (Sweeps on motion/tilt) */
-.sticker-gloss-glint {
+/* Layer 2: Fresnel rim — edges glow brighter at shallow angles */
+.fresnel-rim {
   position: absolute;
-  inset: -60%;
-  width: 220%;
-  height: 220%;
+  inset: 0;
+  border-radius: 12px;
+  mix-blend-mode: screen;
+  opacity: 0;
   pointer-events: none;
-  will-change: background;
+  will-change: background, opacity;
+}
+
+/* Layer 3: Environment reflection — soft ambient light pickup */
+.env-reflect {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  mix-blend-mode: overlay;
+  opacity: 0;
+  pointer-events: none;
+  will-change: background, opacity;
+}
+
+/* Layer 4: Image washout — vinyl gets milky white at steep angles */
+.washout {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 1);
+  mix-blend-mode: overlay;
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+/* Layer 5: Iridescence — subtle color shift at edges */
+.iridescence {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  mix-blend-mode: color-dodge;
+  opacity: 0;
+  pointer-events: none;
+  will-change: background, opacity;
 }
 
 /* ----------------------------------------------------

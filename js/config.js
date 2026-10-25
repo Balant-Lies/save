@@ -451,14 +451,76 @@ const stickerProps = {
     shadowRestBlur: 28
   },
   shadow: { enabled: false },
-  glare: { mouseTracking: false, gyroscope: true },
+
+  // PBR Gloss & Specular Sheen (Derived from sticker-gloss-config (1).json)
   gloss: {
-    style: 'studio',
-    angle: -140,
-    opacity: 0.45,
-    blendMode: 'overlay',
-    tint: '255, 255, 255'
+    tilt: {
+      enabled: false,
+      maxTilt: 20,
+      multX: 1,
+      multY: 1,
+      invX: false,
+      invY: false,
+      lockX: false,
+      lockY: false,
+      smoothing: 0.1,
+      perspective: 900
+    },
+    specular: {
+      enabled: true,
+      intensity: 0.28,
+      size: 80,
+      falloff: 0.84,
+      travel: 44,
+      color: "golden"
+    },
+    fresnel: {
+      enabled: true,
+      intensity: 0.4,
+      exponent: 3,
+      rimWidth: 20
+    },
+    environment: {
+      enabled: true,
+      intensity: 0.25,
+      blur: 12,
+      preset: "studio"
+    },
+    surface: {
+      washout: true,
+      washoutStrength: 0.15,
+      iridescence: false,
+      iridescenceStrength: 0.08
+    },
+    backlight: {
+      enabled: false,
+      brightness: 0.74,
+      contrast: 1.1,
+      saturation: 1.5,
+      glowIntensity: 0.6,
+      glowBlur: 38,
+      color: "cool"
+    },
+    input: {
+      source: "auto",
+      gyroSensitivity: 1.5,
+      mouseSensitivity: 0
+    },
+    idle: {
+      enabled: true,
+      speed: 0.8,
+      amplitude: 0.35,
+      tilt: false
+    },
+    // Global overhead light source with spatial parallax
+    worldLight: {
+      enabled: true,
+      x: 0.5,        // Light source X in viewport coordinates (0.5 = horizontal center)
+      y: 0.25,       // Light source Y in viewport coordinates (0.25 = overhead desk lamp)
+      parallax: 0.45 // Natural spatial parallax factor across screen distance
+    }
   },
+  get glare() { return this.gloss; },
 
   // 1. Work Navigation Sticker (CRT Monitor)
   work: {
