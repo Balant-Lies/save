@@ -1,0 +1,84 @@
+<svg width="305" height="317" viewBox="0 0 305 317" fill="none" xmlns="http://www.w3.org/2000/svg">
+<style>
+svg { overflow: visible; }
+@keyframes kf_main_fill_0 {
+  0% {
+    fill: #8C8585;
+  }
+  4.681% {
+    animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1);
+    fill: #8C8585;
+  }
+  91.625% {
+    fill: #000;
+  }
+  100% {
+    fill: #000;
+  }
+}
+#main {
+  animation: kf_main_fill_0 0.8s linear infinite;
+}
+@keyframes kf_peel_transform_0 {
+  0% {
+    transform: translateX(246.888px) translateY(210.66px) translateX(0px) translateY(0px) rotate(1.948rad) scaleX(1) scaleY(1) skewX(0rad);
+  }
+  4.68% {
+    animation-timing-function: cubic-bezier(0, 0.274, 0.58, 1);
+    transform: translateX(246.888px) translateY(210.66px) translateX(0px) translateY(0px) rotate(1.948rad) scaleX(1) scaleY(1) skewX(0rad);
+  }
+  91.63% {
+    transform: translateX(246.888px) translateY(210.66px) translateX(7.145px) translateY(45.276px) rotate(1.948rad) scaleX(1) scaleY(1) skewX(0rad);
+  }
+  100% {
+    transform: translateX(246.888px) translateY(210.66px) translateX(7.145px) translateY(45.276px) rotate(1.948rad) scaleX(1) scaleY(1) skewX(0rad);
+  }
+}
+@keyframes kf_peel_fill_0 {
+  0% {
+    fill: #8C8585;
+  }
+  4.681% {
+    animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1);
+    fill: #8C8585;
+  }
+  91.625% {
+    fill: #000;
+  }
+  100% {
+    fill: #000;
+  }
+}
+#peel {
+  transform-origin: 0 0;
+  animation:
+    kf_peel_transform_0 0.8s linear infinite,
+    kf_peel_fill_0 0.8s linear infinite;
+}
+@keyframes kf_inverseclip_transform_0 {
+  0% {
+    transform: translateX(148.874px) translateY(226.758px) translateX(0px) translateY(0px) rotate(-0.187rad) scaleX(1) scaleY(1) skewX(0rad);
+  }
+  4.68% {
+    animation-timing-function: cubic-bezier(0, 0.274, 0.58, 1);
+    transform: translateX(148.874px) translateY(226.758px) translateX(0px) translateY(0px) rotate(-0.187rad) scaleX(1) scaleY(1) skewX(0rad);
+  }
+  91.63% {
+    transform: translateX(148.874px) translateY(226.758px) translateX(4.829px) translateY(18.745px) rotate(-0.187rad) scaleX(1) scaleY(1) skewX(0rad);
+  }
+  100% {
+    transform: translateX(148.874px) translateY(226.758px) translateX(4.829px) translateY(18.745px) rotate(-0.187rad) scaleX(1) scaleY(1) skewX(0rad);
+  }
+}
+#inverseclip {
+  transform-origin: 0 0;
+  animation: kf_inverseclip_transform_0 0.8s linear infinite;
+}
+</style>
+<g id="Frame_2147260676">
+<path id="bg" transform="translate(151.867 223.861) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="white"/>
+<path id="main" transform="translate(159.813 224.784) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="black"/>
+<path id="peel" transform="translate(246.888 210.66) rotate(111.625)" d="M33.0869 -0.75L60.6152 46.9316L61.915 49.1816H1.66113L2.95996 46.9316L30.4883 -0.75L31.7881 -3L33.0869 -0.75Z" fill="black" stroke="white" stroke-width="3"/>
+<path id="inverseclip" transform="translate(148.874 226.758) rotate(-10.7228)" d="M32.3323 0.929956L81.3395 0L109.556 65.0203L0 66.9418L32.3323 0.929956Z" fill="white"/>
+</g>
+</svg>

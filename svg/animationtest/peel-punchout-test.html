@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Peel Icon Vector Layers Punch-Out Test</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #09090e;
+      --card-bg: #12121a;
+      --border: #222232;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: #f1f1f6;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 20px;
+    }
+
+    .header-box {
+      text-align: center;
+      max-width: 820px;
+      margin-bottom: 24px;
+    }
+
+    .header-box h1 {
+      font-size: 1.55rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #fff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-box p {
+      font-size: 0.84rem;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      background: #14141f;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 18px;
+      margin-bottom: 28px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 4px;
+      background: #0c0c12;
+      border: 1px solid #20202e;
+      border-radius: 999px;
+      padding: 3px;
+    }
+
+    .ctrl-btn {
+      background: transparent;
+      border: none;
+      color: #8888a0;
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: inherit;
+      padding: 6px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .ctrl-btn:hover { color: #fff; }
+
+    .ctrl-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .label-tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      margin-right: -4px;
+    }
+
+    /* Comparison Grid */
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 22px;
+      width: 100%;
+      max-width: 1280px;
+    }
+
+    .preview-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+
+    .card-badge {
+      align-self: flex-start;
+      font-size: 0.66rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 5px;
+      margin-bottom: 12px;
+    }
+
+    .badge-orig {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+
+    .badge-punched {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+    }
+
+    .badge-sticker {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38bdf8;
+    }
+
+    .card-title {
+      align-self: flex-start;
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .card-desc {
+      align-self: flex-start;
+      font-size: 0.74rem;
+      color: #88889c;
+      line-height: 1.4;
+      margin-bottom: 16px;
+      min-height: 38px;
+    }
+
+    /* Stage Canvas with Switchable Background */
+    .stage-canvas {
+      width: 270px;
+      height: 280px;
+      border-radius: 12px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #28283a;
+      overflow: hidden;
+      transition: background 0.2s ease;
+    }
+
+    /* Background Modes */
+    .bg-checker {
+      background-color: #111118;
+      background-image: 
+        linear-gradient(45deg, #181822 25%, transparent 25%), 
+        linear-gradient(-45deg, #181822 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #181822 75%), 
+        linear-gradient(-45deg, transparent 75%, #181822 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+
+    .bg-desk {
+      background: radial-gradient(circle at 50% 50%, #1c1c28 0%, #0d0d14 100%);
+      background-image: radial-gradient(#2d2d42 1px, transparent 1px);
+      background-size: 14px 14px;
+    }
+
+    .bg-cyber {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+    }
+
+    .bg-neon {
+      background: linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%);
+    }
+
+    .svg-frame {
+      width: 250px;
+      height: 260px;
+      overflow: visible;
+    }
+
+    /* Code Snippet Box */
+    .code-box {
+      width: 100%;
+      margin-top: 14px;
+      background: #09090d;
+      border: 1px solid #1c1c26;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.67rem;
+      color: #94a3b8;
+      line-height: 1.45;
+    }
+
+    .hl-kw { color: #f43f5e; }
+    .hl-id { color: #38bdf8; }
+    .hl-val { color: #a3e635; }
+    .hl-dim { color: #525266; }
+
+    /* EXACT ORIGINAL MOTION KEYFRAMES (Moving in exact original trajectory) */
+    @keyframes kf_opt_main {
+      0%, 4.68% { fill: #8C8585; animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1); }
+      91.63%, 100% { fill: #000000; }
+    }
+
+    @keyframes kf_opt_peel_trans {
+      0%, 4.68% {
+        transform: translate(246.888px, 210.66px) rotate(111.625deg);
+        animation-timing-function: cubic-bezier(0, 0.274, 0.58, 1);
+      }
+      91.63%, 100% {
+        transform: translate(254.033px, 255.936px) rotate(111.625deg);
+      }
+    }
+
+    @keyframes kf_opt_peel_fill {
+      0%, 4.68% { fill: #8C8585; animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1); }
+      91.63%, 100% { fill: #000000; }
+    }
+
+    @keyframes kf_opt_inv_trans {
+      0%, 4.68% {
+        transform: translate(148.874px, 226.758px) rotate(-10.7228deg);
+        animation-timing-function: cubic-bezier(0, 0.274, 0.58, 1);
+      }
+      91.63%, 100% {
+        transform: translate(153.703px, 245.503px) rotate(-10.7228deg);
+      }
+    }
+
+    .anim-main { animation: kf_opt_main 0.8s linear infinite; }
+    .anim-peel {
+      transform-origin: 0 0;
+      animation: kf_opt_peel_trans 0.8s linear infinite, kf_opt_peel_fill 0.8s linear infinite;
+    }
+    .anim-inv {
+      transform-origin: 0 0;
+      animation: kf_opt_inv_trans 0.8s linear infinite;
+    }
+
+    /* States (Controlled via body class) */
+    .mode-inactive .anim-peel,
+    .mode-inactive .anim-main,
+    .mode-inactive #main_orig,
+    .mode-inactive #peel_orig {
+      animation: none !important;
+      fill: #8C8585 !important;
+    }
+    .mode-inactive .anim-inv {
+      animation: none !important;
+      fill: #000000 !important; /* Pure black in mask -> 100% clean punchout */
+    }
+    .mode-inactive #inv_orig {
+      animation: none !important;
+      fill: #ffffff !important;
+    }
+    .mode-inactive .anim-peel,
+    .mode-inactive #peel_orig {
+      transform: translate(246.888px, 210.66px) rotate(111.625deg) !important;
+    }
+    .mode-inactive .anim-inv,
+    .mode-inactive #inv_orig {
+      transform: translate(148.874px, 226.758px) rotate(-10.7228deg) !important;
+    }
+
+    .mode-active .anim-peel,
+    .mode-active .anim-main,
+    .mode-active .anim-inv,
+    .mode-active #main_orig,
+    .mode-active #peel_orig,
+    .mode-active #inv_orig {
+      animation: none !important;
+    }
+    .mode-active .anim-main,
+    .mode-active #main_orig {
+      fill: #000000 !important;
+    }
+    .mode-active .anim-peel,
+    .mode-active #peel_orig {
+      transform: translate(254.033px, 255.936px) rotate(111.625deg) !important;
+      fill: #000000 !important;
+    }
+    .mode-active .anim-inv {
+      transform: translate(153.703px, 245.503px) rotate(-10.7228deg) !important;
+      fill: #000000 !important;
+    }
+    .mode-active #inv_orig {
+      transform: translate(153.703px, 245.503px) rotate(-10.7228deg) !important;
+      fill: #ffffff !important;
+    }
+
+    /* Legend Box */
+    .legend-box {
+      margin-top: 24px;
+      max-width: 1280px;
+      width: 100%;
+      background: #111119;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+    .legend-box b { color: #f1f1f6; }
+  </style>
+</head>
+<body class="mode-loop">
+
+  <!-- Header -->
+  <div class="header-box">
+    <h1>Peel Icon Vector Layers Punch-Out Test</h1>
+    <p>
+      The <code>#inverseclip</code> shape now <b>punches out the other vector layers below it</b> inside the icon,<br>
+      with the exact original motion trajectory restored (moves <b>+7.15px X, +45.28px Y</b>).
+    </p>
+  </div>
+
+  <!-- Interactive Controls Bar -->
+  <div class="controls-bar">
+    <span class="label-tag">Animation State:</span>
+    <div class="btn-group">
+      <button class="ctrl-btn" id="btnInactive" onclick="setState('inactive')">Frame 0 (0% Inactive)</button>
+      <button class="ctrl-btn active" id="btnLoop" onclick="setState('loop')">Loop (0.8s)</button>
+      <button class="ctrl-btn" id="btnActive" onclick="setState('active')">Last Frame (100% Active)</button>
+    </div>
+
+    <span class="label-tag" style="margin-left: 8px;">Backdrop Underneath:</span>
+    <div class="btn-group">
+      <button class="ctrl-btn active" onclick="setBackdrop('checker')">Checkerboard</button>
+      <button class="ctrl-btn" onclick="setBackdrop('desk')">Desk Grid</button>
+      <button class="ctrl-btn" onclick="setBackdrop('cyber')">Cyber Indigo</button>
+      <button class="ctrl-btn" onclick="setBackdrop('neon')">Neon Lime</button>
+    </div>
+  </div>
+
+  <!-- Comparison Grid -->
+  <div class="grid-container">
+
+    <!-- 1. ORIGINAL SVG (UNMODIFIED) -->
+    <div class="preview-card">
+      <div class="card-badge badge-orig">1. Original peelicon.svg</div>
+      <div class="card-title">Opaque White Path Covering Layers</div>
+      <div class="card-desc">
+        <code>#inverseclip</code> is drawn as a solid white path with <code>fill="white"</code> sitting on top of the other vector layers.
+      </div>
+
+      <div class="stage-canvas bg-checker" id="canvas1">
+        <svg class="svg-frame" viewBox="0 0 305 317" preserveAspectRatio="none">
+          <g id="Frame_orig">
+            <!-- 1. White Backing -->
+            <path id="bg_orig" transform="translate(151.867 223.861) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="white"/>
+            <!-- 2. Dark Backing -->
+            <path id="main_orig" class="anim-main" transform="translate(159.813 224.784) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="black"/>
+            <!-- 3. Peel Flap -->
+            <path id="peel_orig" class="anim-peel" d="M33.0869 -0.75L60.6152 46.9316L61.915 49.1816H1.66113L2.95996 46.9316L30.4883 -0.75L31.7881 -3L33.0869 -0.75Z" fill="black" stroke="white" stroke-width="3"/>
+            <!-- 4. Solid White Path (Covers layers with white) -->
+            <path id="inv_orig" class="anim-inv" d="M32.3323 0.929956L81.3395 0L109.556 65.0203L0 66.9418L32.3323 0.929956Z" fill="white"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="code-box">
+        <span class="hl-dim">// Original DOM:</span><br>
+        &lt;<span class="hl-kw">path</span> <span class="hl-id">id</span>=<span class="hl-val">"inverseclip"</span> <span class="hl-id">fill</span>=<span class="hl-val">"white"</span> /&gt;<br>
+        <span class="hl-dim">// ❌ Solid white polygon covers the layers</span>
+      </div>
+    </div>
+
+    <!-- 2. PUNCH-OUT ON ALL VECTOR LAYERS BELOW IT -->
+    <div class="preview-card">
+      <div class="card-badge badge-punched">2. Optimized Vector Punch-Out</div>
+      <div class="card-title">Punches Out All Vector Layers Below</div>
+      <div class="card-desc">
+        <code>#inverseclip</code> is used as a mask in black. It punches out any vector layers below it (<code>#bg</code>, <code>#main</code>, <code>#peel</code>) into transparency!
+      </div>
+
+      <div class="stage-canvas bg-checker" id="canvas2">
+        <svg class="svg-frame" viewBox="0 0 305 317" preserveAspectRatio="none">
+          <defs>
+            <mask id="mask_all_punched" maskUnits="userSpaceOnUse" x="0" y="0" width="305" height="317">
+              <!-- White reveals the vector layers -->
+              <rect width="100%" height="100%" fill="white" />
+              <!-- Black punches out whatever it covers! -->
+              <path class="anim-inv" transform="translate(148.874 226.758) rotate(-10.7228)" d="M32.3323 0.929956L81.3395 0L109.556 65.0203L0 66.9418L32.3323 0.929956Z" fill="black" />
+            </mask>
+          </defs>
+
+          <!-- Vector layers below it, masked by the punch-out mask! -->
+          <g id="Frame_punched_all" mask="url(#mask_all_punched)">
+            <path id="bg_p1" transform="translate(151.867 223.861) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="white"/>
+            <path id="main_p1" class="anim-main" transform="translate(159.813 224.784) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="black"/>
+            <path id="peel_p1" class="anim-peel" transform="translate(246.888 210.66) rotate(111.625)" d="M33.0869 -0.75L60.6152 46.9316L61.915 49.1816H1.66113L2.95996 46.9316L30.4883 -0.75L31.7881 -3L33.0869 -0.75Z" fill="black" stroke="white" stroke-width="3"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="code-box">
+        <span class="hl-dim">// SVG Punch-Out Mask:</span><br>
+        &lt;<span class="hl-kw">g</span> <span class="hl-id">mask</span>=<span class="hl-val">"url(#mask_all_punched)"</span>&gt;<br>
+        &nbsp;&nbsp;&lt;<span class="hl-kw">path</span> <span class="hl-id">id</span>=<span class="hl-val">"bg"</span> /&gt; &lt;<span class="hl-kw">path</span> <span class="hl-id">id</span>=<span class="hl-val">"main"</span> /&gt; &lt;<span class="hl-kw">path</span> <span class="hl-id">id</span>=<span class="hl-val">"peel"</span> /&gt;<br>
+        &lt;/<span class="hl-kw">g</span>&gt;
+      </div>
+    </div>
+
+    <!-- 3. PUNCH-OUT ON BACKING ONLY (PEEL FLAP ON TOP) -->
+    <div class="preview-card">
+      <div class="card-badge badge-punched">3. Punch Backing (#bg & #main)</div>
+      <div class="card-title">Backing Punched, Flap On Top</div>
+      <div class="card-desc">
+        Punches out the adhesive backing (<code>#bg</code> and <code>#main</code>) where the corner peeled, while <code>#peel</code> flap folds cleanly on top!
+      </div>
+
+      <div class="stage-canvas bg-checker" id="canvas3">
+        <svg class="svg-frame" viewBox="0 0 305 317" preserveAspectRatio="none">
+          <defs>
+            <mask id="mask_backing_punched" maskUnits="userSpaceOnUse" x="0" y="0" width="305" height="317">
+              <rect width="100%" height="100%" fill="white" />
+              <!-- Black punches out the backing -->
+              <path class="anim-inv" transform="translate(148.874 226.758) rotate(-10.7228)" d="M32.3323 0.929956L81.3395 0L109.556 65.0203L0 66.9418L32.3323 0.929956Z" fill="black" />
+            </mask>
+          </defs>
+
+          <!-- Backing layers punched out -->
+          <g id="Frame_backing" mask="url(#mask_backing_punched)">
+            <path transform="translate(151.867 223.861) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="white"/>
+            <path class="anim-main" transform="translate(159.813 224.784) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="black"/>
+          </g>
+
+          <!-- Peel Flap sitting cleanly on top of the fold -->
+          <path class="anim-peel" transform="translate(246.888 210.66) rotate(111.625)" d="M33.0869 -0.75L60.6152 46.9316L61.915 49.1816H1.66113L2.95996 46.9316L30.4883 -0.75L31.7881 -3L33.0869 -0.75Z" fill="black" stroke="white" stroke-width="3"/>
+        </svg>
+      </div>
+
+      <div class="code-box">
+        <span class="hl-dim">// Backing Punched + Flap on top:</span><br>
+        &lt;<span class="hl-kw">g</span> <span class="hl-id">mask</span>=<span class="hl-val">"url(#mask_backing_punched)"</span>&gt; &lt;<span class="hl-kw">path</span> <span class="hl-id">id</span>=<span class="hl-val">"bg"</span> /&gt; ... &lt;/<span class="hl-kw">g</span>&gt;<br>
+        &lt;<span class="hl-kw">path</span> <span class="hl-id">id</span>=<span class="hl-val">"peel"</span> /&gt; <span class="hl-dim">// Flap folds on top</span>
+      </div>
+    </div>
+
+    <!-- 4. RESTING OVER THE STICKER PNG (STICKER UNPUNCHED) -->
+    <div class="preview-card">
+      <div class="card-badge badge-sticker">4. Over Sticker Art</div>
+      <div class="card-title">Icon Over CRT Sticker (PNG Untouched)</div>
+      <div class="card-desc">
+        The sticker PNG below is completely untouched. The icon sits over it, with its own vector layers punched out by <code>#inverseclip</code>!
+      </div>
+
+      <div class="stage-canvas bg-checker" id="canvas4">
+        <div style="position: relative; width: 230px; height: 240px;">
+          <!-- Sticker PNG untouched underneath -->
+          <img src="../workstickerpng.png" alt="Sticker" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;">
+
+          <!-- Peel Icon Overlay with Punched Vector Layers -->
+          <svg style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;" viewBox="0 0 305 317" preserveAspectRatio="none">
+            <g mask="url(#mask_all_punched)">
+              <path transform="translate(151.867 223.861) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="white"/>
+              <path class="anim-main" transform="translate(159.813 224.784) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="black"/>
+              <path class="anim-peel" transform="translate(246.888 210.66) rotate(111.625)" d="M33.0869 -0.75L60.6152 46.9316L61.915 49.1816H1.66113L2.95996 46.9316L30.4883 -0.75L31.7881 -3L33.0869 -0.75Z" fill="black" stroke="white" stroke-width="3"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <div class="code-box">
+        <span class="hl-dim">// Sticker PNG is UNTOUCHED underneath:</span><br>
+        &lt;<span class="hl-kw">img</span> <span class="hl-id">src</span>=<span class="hl-val">"workstickerpng.png"</span> /&gt;<br>
+        &lt;<span class="hl-kw">svg</span>&gt; &lt;<span class="hl-kw">g</span> <span class="hl-id">mask</span>=<span class="hl-val">"url(#punchout)"</span>&gt; ... &lt;/<span class="hl-kw">g</span>&gt; &lt;/<span class="hl-kw">svg</span>&gt;
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Explanatory Legend -->
+  <div class="legend-box">
+    <b>✦ Verification Notes:</b><br>
+    • <b>Trajectory Fix</b>: In Card 2, 3, and 4, the peel flap now moves in the <b>exact original direction</b> (moving down-right by <code>+7.15px</code> X, <code>+45.28px</code> Y, identical to Card 1).<br>
+    • <b>Vector Punch-Out</b>: In Card 1, <code>#inverseclip</code> covers the layers with a solid opaque white shape. In Card 2 & 3, the white polygon is gone—it instead <b>punches a transparent hole through the vector layers</b> below it!<br>
+    • <b>Check with Backdrops</b>: Switch to <b>Neon Lime</b> or <b>Desk Grid</b> to see the transparency punched directly through the vector layers.
+  </div>
+
+  <script>
+    function setState(state) {
+      document.body.className = `mode-${state}`;
+      document.getElementById('btnInactive').classList.toggle('active', state === 'inactive');
+      document.getElementById('btnLoop').classList.toggle('active', state === 'loop');
+      document.getElementById('btnActive').classList.toggle('active', state === 'active');
+    }
+
+    function setBackdrop(bg) {
+      ['canvas1', 'canvas2', 'canvas3', 'canvas4'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.className = `stage-canvas bg-${bg}`;
+      });
+      document.querySelectorAll('.controls-bar .btn-group')[1].querySelectorAll('.ctrl-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.toLowerCase().includes(bg));
+      });
+    }
+  </script>
+</body>
+</html>

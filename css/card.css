@@ -1,0 +1,283 @@
+/* ====================================================
+   CARD COMPONENT STYLES
+   Styles for interactive cards, peel flaps, hitboxes, and SVG layers.
+   ==================================================== */
+
+:root {
+  --card-title-color: #111111;
+  --card-title-size: 0.72rem;
+  --card-title-weight: 700;
+  --card-title-spacing: 0.08em;
+  --card-title-font: 'Departure Mono', monospace;
+  --card-title-transform: none;
+
+  /* THEME VARIABLES: Monochrome Swiss Architecture */
+  --card-bg: #0c0c0c;
+  /* Background inside the card (black inner box) */
+  --card-flap: #ffffff;
+  /* The white peeled back paper */
+  --card-peel: #0c0c0c;
+  /* Deep black underside of the peel flap */
+  --card-peel-stroke: #000000;
+  /* Crisp black outline in front on the peel */
+  --card-peel-outer-stroke: #ffffff;
+  /* Crisp white outline behind the black outline */
+
+  --btn-default: #ffffff;
+  /* Default icon diamond fill */
+  --btn-active: #0c0c0c;
+  /* Highlighted icon diamond fill (solid black) */
+  --btn-stroke: #ffffff;
+  /* Crisp white outline on buttons */
+
+  --eye-lid: #ffffff;
+  /* Eyelid color when selected */
+  --eye-pupil: #0c0c0c;
+  /* Eye pupil stroke when selected (contrasts with white eyelid) */
+  --eye-pupil-fill: #0c0c0c;
+  /* Eye pupil fill when selected */
+
+  --eye-lid-default: #0c0c0c;
+  /* Eyelid color when approaching / unselected */
+  --eye-pupil-default: #ffffff;
+  /* Eye pupil stroke when approaching / unselected (contrasts with black eyelid) */
+  --eye-pupil-fill-default: #0c0c0c;
+  /* Eye pupil fill when approaching / unselected */
+
+  --behind-text: #0c0c0c;
+  /* Color of the text revealed behind the card */
+}
+
+.wrap {
+  position: relative;
+  width: 300px;
+  height: 250px;
+  margin: 0 auto;
+}
+
+/* The surface revealed directly behind the card */
+.card-behind {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 300px;
+  height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 0;
+}
+
+.card-behind-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.card-behind-text {
+  font-family: 'Departure Mono', monospace;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--behind-text, #1A885C);
+  text-align: center;
+  display: inline-block;
+}
+
+/* Elegant loading progress bar below the text */
+.card-loading-bar {
+  width: 110px;
+  height: 4px;
+  background-color: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  opacity: 0;
+  transform: scaleX(0.85);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.card-loading-bar.active {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.card-loading-progress {
+  width: 100%;
+  height: 100%;
+  background-color: var(--behind-text, #1A885C);
+  border-radius: 999px;
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+.card {
+  position: relative;
+  /* background-color: #ffffff;  REMOVED: Handled by SVG */
+  width: 300px;
+  height: 250px;
+  padding: 6px 10px 10px 10px;
+  /* clip-path: polygon(...); REMOVED: Handled by dynamic SVG clipPath! */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hardware-accelerated paper grain overlay strictly on card paper border and header */
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: var(--paper-grain-image, none);
+  background-size: var(--paper-grain-size, 140px 140px);
+  background-repeat: repeat;
+  opacity: var(--paper-grain-opacity, 0.12);
+  mix-blend-mode: var(--paper-grain-blend, multiply);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 0;
+  display: var(--paper-grain-display, block);
+}
+
+.card-header {
+  position: relative;
+  z-index: 1;
+  min-height: 22px;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 0 4px 0;
+  box-sizing: border-box;
+}
+
+.card-title {
+  font-family: var(--card-title-font, 'Departure Mono', monospace);
+  font-size: var(--card-title-size, 0.72rem);
+  font-weight: var(--card-title-weight, 700);
+  letter-spacing: var(--card-title-spacing, 0.08em);
+  text-transform: var(--card-title-transform, none);
+  color: var(--card-title-color, #111111);
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.inner-rect {
+  position: relative;
+  z-index: 1;
+  background-color: var(--card-bg, #0c0c0c);
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.card-bg-path {
+  fill: var(--card-paper-color, #F2F2F2);
+}
+
+.hitbox {
+  position: absolute;
+  bottom: -14px;
+  right: -10px;
+  width: 80px;
+  height: 80px;
+  z-index: 10;
+  cursor: grab;
+  touch-action: none;
+  background-color: rgba(0, 255, 0, 0);
+  transform: rotate(180deg);
+  clip-path: polygon(100% 0%, 100% 33%, 100% 66%, 100% 100%, 66% 100%, 33% 100%, 0% 100%);
+}
+
+.hitbox:active {
+  cursor: grabbing;
+}
+
+body.is-peeling,
+body.is-peeling * {
+  cursor: grabbing !important;
+}
+
+.triangle-svg {
+  position: absolute;
+  bottom: -4px;
+  right: 0px;
+  width: 120px;
+  height: 120px;
+  transform: rotate(180deg);
+  pointer-events: none;
+  overflow: visible;
+  z-index: 5;
+  /* Filter removed. Handled mathematically now! */
+}
+
+.card-bg-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.triangle-path {
+  fill: var(--card-flap, #ffffff);
+  stroke: var(--card-flap, #ffffff);
+  /* Geometry and animation are now handled cleanly by HTML and GSAP */
+}
+
+.inner-triangle-outer-path {
+  fill: none;
+  stroke: var(--card-peel-outer-stroke, #ffffff);
+}
+
+.inner-triangle-path {
+  fill: var(--card-peel, #0c0c0c);
+  stroke: var(--card-peel-stroke, #000000);
+}
+
+.sq-path {
+  stroke: var(--btn-stroke, #ffffff);
+}
+
+/* Disable the native bloating focus ring */
+g:focus {
+  outline: none;
+}
+
+/* Reveal our custom non-scaling SVG focus ring instead! */
+g:focus .custom-focus {
+  opacity: 1;
+}
+
+/* Button text overlay */
+.btn-text-group {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.btn-text {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.btn-text-box {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}

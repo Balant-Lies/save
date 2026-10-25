@@ -1,0 +1,1568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sticker Highlight, Corner Peel-Detach & Physics Lab</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d0d12;
+      --card-bg: #15151e;
+      --border: #262638;
+      --accent: #1A885C; /* Signature card peel green */
+      --accent-light: #2dd4bf;
+      --text: #f0f0f8;
+      --text-muted: #8888a0;
+
+      /* Specular Highlight Dynamics */
+      --diag-pos: 50%;
+      --sheen-x: 50%;
+      --sheen-y: 50%;
+      --sheen-opacity: 0.85;
+      --sheen-blend: overlay;
+      --sheen-angle: -155deg;
+      --sheen-tint: 255, 255, 255;
+
+      /* Dual Sharp Beams Parametric Controls */
+      --beam1-width: 10%;
+      --beam-gap: 7%;
+      --beam2-width: 6%;
+      --beam-softness: 0.6%;
+
+      /* Sticker Physical Positioning (Strictly 2D Flat - Zero Body Tilt) */
+      --sticker-x: 0px;
+      --sticker-y: 0px;
+      --sticker-scale: 1;
+      --sticker-shadow-y: 16px;
+      --sticker-shadow-blur: 28px;
+      --sticker-shadow-opacity: 0.72;
+
+      /* Peel Flap Backing Colors */
+      --flap-bg: #1A885C;
+      --flap-stroke: #000000;
+      --flap-outer-stroke: #ffffff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Departure Mono', monospace, system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      gap: 20px;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+    }
+
+    h1 {
+      font-size: 1.15rem;
+      color: var(--accent-light);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: 0.03em;
+    }
+
+    .badge {
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: #1e1e2c;
+      border: 1px solid #363650;
+      color: #bbb;
+    }
+
+    .badge-green {
+      background: rgba(26, 136, 92, 0.25);
+      border-color: #1A885C;
+      color: #4ade80;
+    }
+
+    /* Main Showcase Grid */
+    .showcase-stage {
+      display: grid;
+      grid-template-columns: 1fr 390px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 1020px) {
+      .showcase-stage {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Canvas Stage */
+    .stage-canvas {
+      height: 560px;
+      background: radial-gradient(circle at 50% 45%, #181827 0%, #07070a 100%);
+      border: 1px dashed #2d2d42;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* Docking Target Slot on Cardboard Surface */
+    .dock-target-slot {
+      position: absolute;
+      width: 284px;
+      height: 296px;
+      border: 2px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      padding-bottom: 14px;
+      transition: border-color 0.25s ease, background 0.25s ease;
+    }
+
+    .dock-target-slot.highlight-hover {
+      border-color: var(--accent-light);
+      background: rgba(45, 212, 191, 0.05);
+    }
+
+    .dock-label {
+      font-size: 0.68rem;
+      color: #55556e;
+      letter-spacing: 0.04em;
+    }
+
+    /* ----------------------------------------------------
+       DRAGGABLE STICKER HITBOX WRAPPER
+       (NEVER clipped directly so pointer events never freeze)
+       ---------------------------------------------------- */
+    .sticker-wrap {
+      position: absolute;
+      width: 280px;
+      height: 292px; /* 323x337 aspect ratio */
+      cursor: grab;
+      touch-action: none;
+      transform: translate3d(var(--sticker-x), var(--sticker-y), 0px) scale(var(--sticker-scale));
+      transform-origin: center center;
+      will-change: transform;
+      z-index: 10;
+    }
+
+    .sticker-wrap:active,
+    body.is-dragging .sticker-wrap {
+      cursor: grabbing !important;
+    }
+
+    /* Visual drop shadow attached to sticker wrapper */
+    .sticker-drop-shadow {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      filter: drop-shadow(0 var(--sticker-shadow-y) var(--sticker-shadow-blur) rgba(0, 0, 0, var(--sticker-shadow-opacity)));
+    }
+
+    /* ----------------------------------------------------
+       LAYER A: ADHERED STICKER BODY
+       (Clipped to fold line during peel)
+       ---------------------------------------------------- */
+    .sticker-adhered-body {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      will-change: clip-path;
+    }
+
+    .sticker-base-png {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    /* Specular Highlight Layer (Masked to CRT Monitor PNG) */
+    .sticker-highlight-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+
+      -webkit-mask-image: url('../workstickerpng.png');
+      mask-image: url('../workstickerpng.png');
+      -webkit-mask-size: contain;
+      mask-size: contain;
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      mask-position: center;
+
+      mix-blend-mode: var(--sheen-blend);
+      opacity: var(--sheen-opacity);
+      transition: opacity 0.1s ease-out;
+    }
+
+    /* Highlight Mode 1: Dual Sharp Beams */
+    .highlight-dual-sharp {
+      display: none;
+      position: absolute;
+      inset: -60%;
+      width: 220%;
+      height: 220%;
+      pointer-events: none;
+    }
+    .highlight-dual-sharp.active { display: block; }
+
+    /* Highlight Mode 2: Original Figma 2 Vector Shards */
+    .shards-svg-wrap {
+      display: none;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .shards-svg-wrap.active { display: block; }
+
+    /* Highlight Mode 3: Continuous Gradient Beam */
+    .highlight-beam-fill {
+      display: none;
+      position: absolute;
+      inset: -50%;
+      width: 200%;
+      height: 200%;
+      pointer-events: none;
+    }
+    .highlight-beam-fill.active { display: block; }
+
+    /* ----------------------------------------------------
+       LAYER B: THE FLAP CLIP WRAPPER & REFLECTED FLAP
+       (Clip wrapper stays in screen space; flap reflects inside it)
+       ---------------------------------------------------- */
+    .flap-clip-wrapper {
+      display: none;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      will-change: clip-path;
+      z-index: 5;
+      overflow: visible;
+    }
+
+    .sticker-peel-flap {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    /* Underside die-cut silhouette (Masked to exact CRT sticker shape!) */
+    .flap-silhouette-mask {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      
+      -webkit-mask-image: url('../workstickerpng.png');
+      mask-image: url('../workstickerpng.png');
+      -webkit-mask-size: contain;
+      mask-size: contain;
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      mask-position: center;
+
+      background: linear-gradient(135deg, #136946 0%, var(--flap-bg) 50%, #209968 100%);
+      filter: drop-shadow(0 0 1px var(--flap-stroke)) drop-shadow(0 0 2px var(--flap-outer-stroke));
+    }
+
+    /* Paper curl surface sheen on the underside flap */
+    .flap-curl-sheen {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom right, rgba(255,255,255,0.4) 0%, transparent 40%, rgba(0,0,0,0.3) 100%);
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
+
+    /* ----------------------------------------------------
+       LAYER C: CREASE CONTACT SHADOW & APEX HIGHLIGHT
+       ---------------------------------------------------- */
+    .crease-shadow-line {
+      display: none;
+      position: absolute;
+      pointer-events: none;
+      z-index: 4;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+      filter: blur(2px);
+      transform-origin: 0 0;
+    }
+
+    .crease-highlight-ridge {
+      display: none;
+      position: absolute;
+      pointer-events: none;
+      z-index: 6;
+      background: rgba(255, 255, 255, 0.7);
+      box-shadow: 0 0 2px rgba(255, 255, 255, 0.9);
+      transform-origin: 0 50%;
+    }
+
+    /* HUD Bar */
+    .stage-hud {
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      background: rgba(12, 12, 18, 0.92);
+      backdrop-filter: blur(8px);
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid #222234;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .hud-val {
+      color: #4ade80;
+      font-weight: 700;
+    }
+
+    /* Control Panel */
+    .control-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 820px;
+      overflow-y: auto;
+    }
+
+    .panel-section-title {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--accent-light);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .toggle-card-box {
+      background: #111118;
+      border: 1px solid #28283a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toggle-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .toggle-row-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+    }
+
+    .btn {
+      background: #1b1b26;
+      border: 1px solid #313146;
+      color: #bbb;
+      padding: 7px 8px;
+      border-radius: 6px;
+      font-size: 0.73rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .btn:hover {
+      background: #242436;
+      border-color: #484866;
+      color: #fff;
+    }
+
+    .btn.active {
+      background: var(--accent);
+      border-color: var(--accent-light);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .btn-block {
+      width: 100%;
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.71rem;
+      color: var(--text-muted);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      background: #272738;
+      border-radius: 2px;
+      accent-color: var(--accent-light);
+      cursor: pointer;
+    }
+
+    select {
+      background: #1b1b26;
+      border: 1px solid #313146;
+      color: #eee;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.73rem;
+      font-family: inherit;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    /* Virtual Gyro Puck */
+    .virtual-gyro-box {
+      background: #0f0f16;
+      border: 1px solid #252536;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .gyro-puck-track {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, #1e1e2d 0%, #0a0a10 100%);
+      border: 2px dashed #3a3a52;
+      position: relative;
+      cursor: crosshair;
+    }
+
+    .gyro-puck {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #fff;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 10px var(--accent);
+      pointer-events: none;
+    }
+
+    /* Code Preview Box */
+    .code-preview-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    pre.code-box {
+      background: #09090d;
+      border: 1px solid #1f1f2e;
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 0.72rem;
+      color: #98c379;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <h1>
+      <span>🏷️ Sticker Corner-Peel & Specular Beams Lab</span>
+    </h1>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <span class="badge badge-green">Sticker-Shaped Flap (Card Parity)</span>
+      <span class="badge">Flat 2D Retro CRT Body</span>
+      <span class="badge" style="color: #4ade80;">Edge Opacity Falloff</span>
+    </div>
+  </header>
+
+  <!-- SHOWCASE STAGE -->
+  <div class="showcase-stage">
+
+    <!-- LEFT: STICKER CANVAS -->
+    <div class="stage-canvas" id="canvasArea">
+      
+      <!-- Dock Slot (Applied Position on Cardboard) -->
+      <div class="dock-target-slot" id="dockSlot">
+        <span class="dock-label">DOCK SLOT [APPLIED ZONE]</span>
+      </div>
+
+      <!-- DRAGGABLE STICKER HITBOX WRAPPER (Never clipped directly) -->
+      <div class="sticker-wrap" id="stickerWrap">
+        
+        <!-- Drop Shadow Layer -->
+        <div class="sticker-drop-shadow" id="stickerShadowWrap">
+
+          <!-- 1. ADHERED BODY LAYER (Clipped during peel) -->
+          <div class="sticker-adhered-body" id="adheredBody">
+            
+            <!-- CRT Monitor Base PNG -->
+            <img class="sticker-base-png" id="stickerImg" src="../workstickerpng.png" alt="CRT Work Sticker">
+
+            <!-- Masked Specular Highlight Layer -->
+            <div class="sticker-highlight-layer" id="highlightLayer">
+
+              <!-- A. DUAL SHARP DIAGONAL BEAMS (Parametric Controls) -->
+              <div class="highlight-dual-sharp active" id="highlightDualSharp"></div>
+
+              <!-- B. FIGMA 2 VECTOR SHARDS -->
+              <svg class="shards-svg-wrap" id="shardsSvg" viewBox="0 0 307 329" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="shard_grad1" x1="228" y1="106.16" x2="95.72" y2="382.05" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#D9D9D9" />
+                    <stop offset="0.38" stop-color="white" stop-opacity="0" />
+                  </linearGradient>
+                  <linearGradient id="shard_grad2" x1="160.3" y1="68.3" x2="48.08" y2="348.32" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#D9D9D9" />
+                    <stop offset="0.38" stop-color="white" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                <g id="shardsGroup" transform="translate(0, 0)">
+                  <path d="M231.191 -8.84082L278.924 16.4101L141 367.159L48.666 357.159L231.191 -8.84082Z" fill="url(#shard_grad1)" fill-opacity="0.8" />
+                  <path d="M188.582 -25.4945L217.582 -16.9956L37 355.659L11.4987 367.159L188.582 -25.4945Z" fill="url(#shard_grad2)" fill-opacity="0.9" />
+                </g>
+              </svg>
+
+              <!-- C. CONTINUOUS GRADIENT BEAM -->
+              <div class="highlight-beam-fill" id="highlightBeam"></div>
+
+            </div>
+
+            <!-- Crease Contact Shadow (Inside adheredBody so it never leaks into air) -->
+            <div class="crease-shadow-line" id="creaseShadow"></div>
+          </div>
+
+          <!-- 2. FLAP CLIP WRAPPER (Screen space clipping for the flap) -->
+          <div class="flap-clip-wrapper" id="flapClipWrap">
+            <!-- Inner Folded Flap (Reflected across crease line) -->
+            <div class="sticker-peel-flap" id="peelFlap">
+              <div class="flap-silhouette-mask" id="flapSilhouette"></div>
+              <div class="flap-curl-sheen"></div>
+            </div>
+            <!-- Crease Apex Highlight Ridge -->
+            <div class="crease-highlight-ridge" id="creaseHighlight"></div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- HUD Telemetry -->
+      <div class="stage-hud">
+        <span>State: <span id="stickerStateReadout" class="hud-val">Applied (Seated)</span></span>
+        <span>Corner: <span id="peelCornerReadout" class="hud-val">Bottom-Right (BR)</span></span>
+        <span>Highlight Pos: <span id="sheenPosReadout" class="hud-val">50%</span></span>
+        <span>Sheen Opacity: <span id="opacityReadout" class="hud-val">85%</span></span>
+      </div>
+    </div>
+
+    <!-- RIGHT: CONTROLS & TUNING PANEL -->
+    <div class="control-panel">
+      
+      <!-- 1. CORNER PEEL-DETACH MECHANIC -->
+      <div class="toggle-card-box">
+        <div class="panel-section-title">🏷️ Sticker Detach Mechanic</div>
+        <div class="toggle-row">
+          <button class="btn active" id="btnPeelDetach" onclick="setDetachMode('peel')">
+            🏷️ Peel-to-Detach
+          </button>
+          <button class="btn" id="btnDirectDrag" onclick="setDetachMode('direct')">
+            ⚡ Direct Drag
+          </button>
+        </div>
+
+        <div style="font-size: 0.69rem; color: #888; margin-top: 2px;">
+          Peel Origin (Touch any corner to curl, or center to direct-lift):
+        </div>
+        <div class="toggle-row-4">
+          <button class="btn" id="btnCornerTL" onclick="forceCorner('TL')">TL</button>
+          <button class="btn" id="btnCornerTR" onclick="forceCorner('TR')">TR</button>
+          <button class="btn" id="btnCornerBL" onclick="forceCorner('BL')">BL</button>
+          <button class="btn active" id="btnCornerBR" onclick="forceCorner('BR')">BR</button>
+        </div>
+
+        <div class="slider-row" style="margin-top: 4px;">
+          <div class="slider-label">
+            <span>Detach Pull Threshold</span>
+            <span id="lblThreshold">70px</span>
+          </div>
+          <input type="range" id="slThreshold" min="40" max="130" value="70">
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Flap Underside Backing</span>
+          </div>
+          <select id="selFlapColor">
+            <option value="#1A885C" selected>Card Signature Green (#1A885C)</option>
+            <option value="#C4A482">Retro Kraft Paper (#C4A482)</option>
+            <option value="#E2E8F0">Cyber Hologram Silver (#E2E8F0)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 2. DUAL SHARP BEAMS CONTROLS -->
+      <div class="toggle-card-box">
+        <div class="panel-section-title">✦ Sharp Beams Parametric Controls</div>
+        
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Beam 1 Width</span>
+            <span id="lblBeam1Width">10%</span>
+          </div>
+          <input type="range" id="slBeam1Width" min="3" max="25" value="10">
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Distance Between Beams (Gap)</span>
+            <span id="lblBeamGap">7%</span>
+          </div>
+          <input type="range" id="slBeamGap" min="2" max="22" value="7">
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Beam 2 Width</span>
+            <span id="lblBeam2Width">6%</span>
+          </div>
+          <input type="range" id="slBeam2Width" min="2" max="18" value="6">
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Gradient Angle</span>
+            <span id="lblBeamAngle">-155°</span>
+          </div>
+          <input type="range" id="slBeamAngle" min="-180" max="180" value="-155">
+        </div>
+        <div class="toggle-row-4" style="margin-top: -2px;">
+          <button class="btn" style="font-size: 0.65rem; padding: 4px;" onclick="setAnglePreset(-155)">-155° (Shards)</button>
+          <button class="btn" style="font-size: 0.65rem; padding: 4px;" onclick="setAnglePreset(25)">25° (Reverse)</button>
+          <button class="btn" style="font-size: 0.65rem; padding: 4px;" onclick="setAnglePreset(115)">115°</button>
+          <button class="btn" style="font-size: 0.65rem; padding: 4px;" onclick="setAnglePreset(-65)">-65°</button>
+        </div>
+
+        <div class="slider-row" style="margin-top: 4px;">
+          <div class="slider-label">
+            <span>Edge Sharpness / Feather</span>
+            <span id="lblBeamSoftness">0.6%</span>
+          </div>
+          <input type="range" id="slBeamSoftness" min="0.1" max="4.0" step="0.1" value="0.6">
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Highlight Tint</span>
+          </div>
+          <select id="selBeamTint">
+            <option value="255, 255, 255" selected>Pure Specular White (#FFFFFF)</option>
+            <option value="165, 243, 252">Holographic Cyan (#A5F3FC)</option>
+            <option value="254, 240, 138">Warm Amber Gleam (#FEF08A)</option>
+            <option value="134, 239, 172">Retro Phosphor Green (#86EFAC)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 3. HIGHLIGHT PRESET SELECTOR -->
+      <div class="toggle-card-box">
+        <div class="panel-section-title">Highlight Setting</div>
+        <div class="toggle-row" style="grid-template-columns: 1fr;">
+          <button class="btn active" id="btnModeDualSharp" onclick="switchHighlightMode('dualSharp')">
+            ✦ 1. Dual Sharp Beams (Parametric)
+          </button>
+          <button class="btn" id="btnModeShards" onclick="switchHighlightMode('shards')">
+            ❖ 2. Figma 2 Vector Shards
+          </button>
+          <button class="btn" id="btnModeBeam" onclick="switchHighlightMode('beam')">
+            〰 3. Default Continuous Beam
+          </button>
+        </div>
+      </div>
+
+      <!-- 4. DRAG RELEASE BEHAVIOR -->
+      <div class="panel-section-title">Drag Release Behavior</div>
+      <div class="toggle-row">
+        <button class="btn active" id="btnSnapSpring" onclick="setDragBehavior('snap')">Spring Snap to Dock</button>
+        <button class="btn" id="btnStayPlace" onclick="setDragBehavior('stay')">Stay Where Dropped</button>
+      </div>
+
+      <!-- 5. MOTION DRIVER & BREATHE SWEEP -->
+      <div class="panel-section-title">Highlight Motion Driver</div>
+      <div class="toggle-row">
+        <button class="btn active" id="btnDriverDrag" onclick="setDriver('mouse')">Pointer Tilt</button>
+        <button class="btn" id="btnDriverAuto" onclick="setDriver('auto')">Auto Breathe (Snappy Delay)</button>
+      </div>
+      <button class="btn btn-block" id="btnRequestGyro" style="border-color: var(--accent); color: #fff;" onclick="enableMobileGyro()">
+        📱 Enable Mobile Gyroscope (Tilt Phone)
+      </button>
+
+      <!-- Desktop Virtual Gyroscope Joystick -->
+      <div class="virtual-gyro-box">
+        <div style="font-size: 0.7rem; color: #888;">Desktop Gyro Tilt Simulator:</div>
+        <div class="gyro-puck-track" id="gyroTrack">
+          <div class="gyro-puck" id="gyroPuck"></div>
+        </div>
+        <div style="font-size: 0.65rem; color: #666;">Drag puck to simulate phone tilt</div>
+      </div>
+
+      <!-- 6. LIVE OPACITY & BLEND -->
+      <div class="panel-section-title">Highlight Blending</div>
+      <div class="slider-row">
+        <div class="slider-label">
+          <span>Base Highlight Opacity</span>
+          <span id="lblBaseOpacity">85%</span>
+        </div>
+        <input type="range" id="slOpacity" min="10" max="100" value="85">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-label">
+          <span>Blend Mode</span>
+        </div>
+        <select id="selBlend">
+          <option value="overlay" selected>overlay (Natural Specular Glare)</option>
+          <option value="screen">screen (Crisp Bright Sheen)</option>
+          <option value="color-dodge">color-dodge (Hologram Glint)</option>
+          <option value="soft-light">soft-light (Muted Satin Gleam)</option>
+        </select>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- LIVE PRODUCTION CSS CODE -->
+  <div class="code-preview-card">
+    <div class="panel-section-title">📋 Production Code Output</div>
+    <pre class="code-box" id="cssOutput"></pre>
+  </div>
+
+  <script>
+    // ----------------------------------------------------
+    // ELEMENT REFERENCES
+    // ----------------------------------------------------
+    const stickerWrap = document.getElementById('stickerWrap');
+    const stickerShadowWrap = document.getElementById('stickerShadowWrap');
+    const adheredBody = document.getElementById('adheredBody');
+    const flapClipWrap = document.getElementById('flapClipWrap');
+    const peelFlap = document.getElementById('peelFlap');
+    const flapSilhouette = document.getElementById('flapSilhouette');
+    const creaseShadow = document.getElementById('creaseShadow');
+    const creaseHighlight = document.getElementById('creaseHighlight');
+    const highlightLayer = document.getElementById('highlightLayer');
+    const highlightDualSharp = document.getElementById('highlightDualSharp');
+    const shardsSvg = document.getElementById('shardsSvg');
+    const shardsGroup = document.getElementById('shardsGroup');
+    const highlightBeam = document.getElementById('highlightBeam');
+    const canvasArea = document.getElementById('canvasArea');
+    const dockSlot = document.getElementById('dockSlot');
+
+    // Readout HUD
+    const stickerStateReadout = document.getElementById('stickerStateReadout');
+    const peelCornerReadout = document.getElementById('peelCornerReadout');
+    const sheenPosReadout = document.getElementById('sheenPosReadout');
+    const opacityReadout = document.getElementById('opacityReadout');
+    const cssOutput = document.getElementById('cssOutput');
+
+    // Controls
+    const btnModeDualSharp = document.getElementById('btnModeDualSharp');
+    const btnModeShards = document.getElementById('btnModeShards');
+    const btnModeBeam = document.getElementById('btnModeBeam');
+    const slBeam1Width = document.getElementById('slBeam1Width');
+    const slBeamGap = document.getElementById('slBeamGap');
+    const slBeam2Width = document.getElementById('slBeam2Width');
+    const slBeamAngle = document.getElementById('slBeamAngle');
+    const slBeamSoftness = document.getElementById('slBeamSoftness');
+    const selBeamTint = document.getElementById('selBeamTint');
+    const slOpacity = document.getElementById('slOpacity');
+    const selBlend = document.getElementById('selBlend');
+    const slThreshold = document.getElementById('slThreshold');
+    const selFlapColor = document.getElementById('selFlapColor');
+
+    const lblBeam1Width = document.getElementById('lblBeam1Width');
+    const lblBeamGap = document.getElementById('lblBeamGap');
+    const lblBeam2Width = document.getElementById('lblBeam2Width');
+    const lblBeamAngle = document.getElementById('lblBeamAngle');
+    const lblBeamSoftness = document.getElementById('lblBeamSoftness');
+    const lblBaseOpacity = document.getElementById('lblBaseOpacity');
+    const lblThreshold = document.getElementById('lblThreshold');
+
+    // State Variables
+    let currentHighlightMode = 'dualSharp';
+    let detachMode = 'peel';
+    let dragBehavior = 'snap';
+    let currentDriver = 'mouse';
+    let isStickerApplied = true;
+    let baseOpacity = 0.85;
+    let detachThreshold = 70;
+    let forcedCorner = null; // null = auto detect
+    let activeCorner = 'BR'; // 'TL', 'TR', 'BL', 'BR'
+    let autoBreatheTimeline = null;
+
+    // Sticker dimensions
+    const STICKER_W = 280;
+    const STICKER_H = 292;
+
+    // Persistent Coordinates
+    let currentStickerX = 0;
+    let currentStickerY = 0;
+
+    // ----------------------------------------------------
+    // SHARP BEAMS GRADIENT GENERATOR
+    // ----------------------------------------------------
+    function getDualSharpGradient(posPct) {
+      const w1 = parseFloat(slBeam1Width.value);
+      const gap = parseFloat(slBeamGap.value);
+      const w2 = parseFloat(slBeam2Width.value);
+      const angle = slBeamAngle.value + 'deg';
+      const soft = parseFloat(slBeamSoftness.value);
+      const tint = selBeamTint.value;
+
+      // Beam 1 starts to left of posPct, Beam 2 is to right
+      const b1Start = (posPct - gap/2 - w1).toFixed(2);
+      const b1Peak = (posPct - gap/2 - soft).toFixed(2);
+      const b1Cut = (posPct - gap/2).toFixed(2);
+
+      const b2Start = (posPct + gap/2).toFixed(2);
+      const b2Peak = (posPct + gap/2 + soft).toFixed(2);
+      const b2Fade = (posPct + gap/2 + w2 * 0.7).toFixed(2);
+      const b2Cut = (posPct + gap/2 + w2).toFixed(2);
+
+      return `linear-gradient(${angle},
+        transparent calc(${b1Start}% - 25%),
+        rgba(${tint}, 0.08) ${b1Start}%,
+        rgba(${tint}, 0.95) ${b1Peak}%,
+        transparent ${b1Cut}%,
+        transparent ${b2Start}%,
+        rgba(${tint}, 0.92) ${b2Peak}%,
+        rgba(${tint}, 0.38) ${b2Fade}%,
+        transparent ${b2Cut}%
+      )`;
+    }
+
+    // ----------------------------------------------------
+    // HIGHLIGHT POSITION & BELL-CURVE EDGE OPACITY FALLOFF
+    // ----------------------------------------------------
+    function updateHighlightPosition(normX, normY) {
+      const diagVal = (normX * 0.75 + normY * 0.45);
+      const diagPos = 50 + (diagVal * 50);
+
+      // Bell-Curve Falloff: fades to 0% at extreme diagonal boundaries
+      const normDist = Math.min(1.25, Math.abs(diagVal));
+      const falloff = Math.max(0, 1 - Math.pow(normDist / 1.05, 2.2));
+      const effectiveOpacity = (baseOpacity * falloff);
+
+      document.documentElement.style.setProperty('--diag-pos', `${diagPos.toFixed(1)}%`);
+      document.documentElement.style.setProperty('--sheen-opacity', effectiveOpacity.toFixed(3));
+
+      // Update Dual Sharp Background
+      if (currentHighlightMode === 'dualSharp') {
+        highlightDualSharp.style.background = getDualSharpGradient(diagPos);
+      } else if (currentHighlightMode === 'beam') {
+        const angle = slBeamAngle.value + 'deg';
+        const tint = selBeamTint.value;
+        highlightBeam.style.background = `linear-gradient(${angle}, 
+          transparent calc(${diagPos.toFixed(1)}% - 35%), 
+          rgba(${tint}, 0.95) ${diagPos.toFixed(1)}%, 
+          transparent calc(${diagPos.toFixed(1)}% + 35%)
+        )`;
+      }
+
+      // Shards Mode
+      const shardX = normX * 130;
+      const shardY = normY * 50;
+      shardsGroup.setAttribute('transform', `translate(${shardX.toFixed(1)}, ${shardY.toFixed(1)})`);
+
+      sheenPosReadout.textContent = `${Math.round(diagPos)}%`;
+      opacityReadout.textContent = `${Math.round(effectiveOpacity * 100)}%`;
+    }
+
+    // ----------------------------------------------------
+    // HIGHLIGHT MODE SWITCHER
+    // ----------------------------------------------------
+    function switchHighlightMode(mode) {
+      currentHighlightMode = mode;
+      btnModeDualSharp.classList.toggle('active', mode === 'dualSharp');
+      btnModeShards.classList.toggle('active', mode === 'shards');
+      btnModeBeam.classList.toggle('active', mode === 'beam');
+
+      highlightDualSharp.classList.toggle('active', mode === 'dualSharp');
+      shardsSvg.classList.toggle('active', mode === 'shards');
+      highlightBeam.classList.toggle('active', mode === 'beam');
+
+      applySettings();
+      updateHighlightPosition(0, 0);
+    }
+
+    function setDetachMode(mode) {
+      detachMode = mode;
+      document.getElementById('btnPeelDetach').classList.toggle('active', mode === 'peel');
+      document.getElementById('btnDirectDrag').classList.toggle('active', mode === 'direct');
+    }
+
+    function setDragBehavior(behavior) {
+      dragBehavior = behavior;
+      document.getElementById('btnSnapSpring').classList.toggle('active', behavior === 'snap');
+      document.getElementById('btnStayPlace').classList.toggle('active', behavior === 'stay');
+    }
+
+    function forceCorner(c) {
+      forcedCorner = c;
+      activeCorner = c;
+      ['TL', 'TR', 'BL', 'BR'].forEach(cn => {
+        document.getElementById(`btnCorner${cn}`).classList.toggle('active', cn === c);
+      });
+      peelCornerReadout.textContent = `${c} (Forced)`;
+    }
+
+    function setAnglePreset(angle) {
+      slBeamAngle.value = angle;
+      applySettings();
+      updateHighlightPosition(0, 0);
+    }
+
+    // ----------------------------------------------------
+    // LIVE PARAMETRIC TUNING & PRODUCTION CODE
+    // ----------------------------------------------------
+    function applySettings() {
+      baseOpacity = slOpacity.value / 100;
+      detachThreshold = parseFloat(slThreshold.value);
+      const blend = selBlend.value;
+      const flapColor = selFlapColor.value;
+
+      lblBeam1Width.textContent = slBeam1Width.value + '%';
+      lblBeamGap.textContent = slBeamGap.value + '%';
+      lblBeam2Width.textContent = slBeam2Width.value + '%';
+      lblBeamAngle.textContent = slBeamAngle.value + '°';
+      lblBeamSoftness.textContent = slBeamSoftness.value + '%';
+      lblBaseOpacity.textContent = slOpacity.value + '%';
+      lblThreshold.textContent = slThreshold.value + 'px';
+
+      document.documentElement.style.setProperty('--sheen-blend', blend);
+      document.documentElement.style.setProperty('--sheen-angle', slBeamAngle.value + 'deg');
+      document.documentElement.style.setProperty('--flap-bg', flapColor);
+
+      // Generate Production CSS output
+      cssOutput.textContent = 
+`/* =========================================================
+   PRODUCTION DIE-CUT STICKER WITH SPECULAR HIGHLIGHT
+   ========================================================= */
+.sticker-highlight-layer {
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: url('workstickerpng.png');
+  mask-image: url('workstickerpng.png');
+  mask-size: contain;
+  mix-blend-mode: ${blend};
+  opacity: var(--sheen-opacity);
+}
+
+/* Dual Sharp Diagonal Beams */
+.highlight-dual-sharp {
+  position: absolute;
+  inset: -60%;
+  width: 220%;
+  height: 220%;
+  background: ${getDualSharpGradient(50).replace(/\n\s+/g, ' ')};
+}
+
+/* Corner-Peel Underside Flap (Die-Cut CRT Silhouette) */
+.sticker-peel-flap {
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: url('workstickerpng.png');
+  mask-image: url('workstickerpng.png');
+  mask-size: contain;
+  background: linear-gradient(135deg, #136946 0%, ${flapColor} 50%, #209968 100%);
+  filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 2px #fff);
+}`;
+    }
+
+    [slBeam1Width, slBeamGap, slBeam2Width, slBeamAngle, slBeamSoftness, selBeamTint, slOpacity, selBlend, slThreshold, selFlapColor].forEach(el => {
+      el.addEventListener('input', () => {
+        applySettings();
+        updateHighlightPosition(0, 0);
+      });
+    });
+
+    // ----------------------------------------------------
+    // PHYSICAL 2D PAPER REFLECTION & CORNER PEEL ENGINE
+    // ----------------------------------------------------
+    function getCornerCoords(corner) {
+      switch(corner) {
+        case 'TL': return { x: 0, y: 0 };
+        case 'TR': return { x: STICKER_W, y: 0 };
+        case 'BL': return { x: 0, y: STICKER_H };
+        case 'BR': default: return { x: STICKER_W, y: STICKER_H };
+      }
+    }
+
+    function renderPeelState(corner, pullDx, pullDy) {
+      const c = getCornerCoords(corner);
+      // Pulled tip position
+      const tipX = c.x + pullDx;
+      const tipY = c.y + pullDy;
+
+      // Fold crease line passes through midpoint M between corner and pulled tip
+      const mx = (c.x + tipX) / 2;
+      const my = (c.y + tipY) / 2;
+
+      // Vector from pulled tip to original corner
+      const vx = c.x - tipX;
+      const vy = c.y - tipY;
+      const dist = Math.hypot(vx, vy);
+      if (dist < 1.5) {
+        resetPeelVisuals();
+        return;
+      }
+
+      // Normal vector pointing towards the peeled corner
+      const nx = vx / dist;
+      const ny = vy / dist;
+
+      // Crease line tangent angle phi (radians)
+      const phi = Math.atan2(vy, vx) + Math.PI / 2;
+
+      // 1. 2D REFLECTION MATRIX: Flips the sticker across the line through M(mx, my) at angle phi
+      const cos2 = Math.cos(2 * phi);
+      const sin2 = Math.sin(2 * phi);
+
+      const a = cos2;
+      const b = sin2;
+      const cMat = sin2;
+      const d = -cos2;
+      const e = mx * (1 - cos2) - my * sin2;
+      const f = my * (1 + cos2) - mx * sin2;
+
+      // 2. HALF-PLANE CLIPPING POLYGON
+      // Extends 700px in both directions along the crease tangent
+      const lineLen = 700;
+      const perpLen = 900;
+      const dirX = Math.cos(phi);
+      const dirY = Math.sin(phi);
+
+      const p1x = mx - dirX * lineLen;
+      const p1y = my - dirY * lineLen;
+      const p2x = mx + dirX * lineLen;
+      const p2y = my + dirY * lineLen;
+
+      // Extrude into the adhered side (-nx, -ny)
+      const p3x = p2x - nx * perpLen;
+      const p3y = p2y - ny * perpLen;
+      const p4x = p1x - nx * perpLen;
+      const p4y = p1y - ny * perpLen;
+
+      const clipPoly = `polygon(${p1x.toFixed(1)}px ${p1y.toFixed(1)}px, ${p2x.toFixed(1)}px ${p2y.toFixed(1)}px, ${p3x.toFixed(1)}px ${p3y.toFixed(1)}px, ${p4x.toFixed(1)}px ${p4y.toFixed(1)}px)`;
+
+      // A. Clip adhered sticker body
+      adheredBody.style.clipPath = clipPoly;
+
+      // B. Clip wrapper for the flap (untransformed screen coordinates!)
+      flapClipWrap.style.display = 'block';
+      flapClipWrap.style.clipPath = clipPoly;
+
+      // C. Inner flap has reflection matrix (no clipPath directly on transformed element)
+      peelFlap.style.display = 'block';
+      peelFlap.style.clipPath = 'none';
+      peelFlap.style.transform = `matrix(${a.toFixed(5)}, ${b.toFixed(5)}, ${cMat.toFixed(5)}, ${d.toFixed(5)}, ${e.toFixed(2)}, ${f.toFixed(2)})`;
+
+      // 3. CREASE CONTACT SHADOW & APEX HIGHLIGHT
+      const creaseLen = 440;
+      const shadowX = mx - dirX * (creaseLen / 2);
+      const shadowY = my - dirY * (creaseLen / 2);
+      const deg = (phi * 180 / Math.PI);
+
+      creaseShadow.style.display = 'block';
+      creaseShadow.style.width = `${creaseLen}px`;
+      creaseShadow.style.height = `7px`;
+      creaseShadow.style.left = `${shadowX.toFixed(1)}px`;
+      creaseShadow.style.top = `${shadowY.toFixed(1)}px`;
+      creaseShadow.style.transform = `rotate(${deg.toFixed(2)}deg)`;
+
+      creaseHighlight.style.display = 'block';
+      creaseHighlight.style.width = `${creaseLen}px`;
+      creaseHighlight.style.height = `1.5px`;
+      creaseHighlight.style.left = `${shadowX.toFixed(1)}px`;
+      creaseHighlight.style.top = `${shadowY.toFixed(1)}px`;
+      creaseHighlight.style.transform = `rotate(${deg.toFixed(2)}deg)`;
+    }
+
+    function resetPeelVisuals() {
+      adheredBody.style.clipPath = 'none';
+      flapClipWrap.style.display = 'none';
+      flapClipWrap.style.clipPath = 'none';
+      peelFlap.style.display = 'none';
+      peelFlap.style.clipPath = 'none';
+      peelFlap.style.transform = 'none';
+      creaseShadow.style.display = 'none';
+      creaseHighlight.style.display = 'none';
+    }
+
+    // ----------------------------------------------------
+    // ROBUST INTERACTION ENGINE (NEVER GETS STUCK)
+    // ----------------------------------------------------
+    let isDragging = false;
+    let isPeeling = false;
+    let dragPointerStartX = 0;
+    let dragPointerStartY = 0;
+    let dragStickerStartX = 0;
+    let dragStickerStartY = 0;
+    let currentCorner = 'BR';
+
+    stickerWrap.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      isDragging = true;
+      document.body.classList.add('is-dragging');
+
+      try { stickerWrap.setPointerCapture(e.pointerId); } catch(err) {}
+
+      dragPointerStartX = e.clientX;
+      dragPointerStartY = e.clientY;
+      dragStickerStartX = currentStickerX;
+      dragStickerStartY = currentStickerY;
+
+      gsap.killTweensOf(stickerWrap);
+
+      // Check click position relative to sticker
+      const rect = stickerWrap.getBoundingClientRect();
+      const localX = e.clientX - rect.left;
+      const localY = e.clientY - rect.top;
+      const normU = localX / rect.width;
+      const normV = localY / rect.height;
+
+      // Center Grab Zone (Direct Lift/Pop)
+      const isCenter = (normU > 0.32 && normU < 0.68 && normV > 0.32 && normV < 0.68);
+
+      if (detachMode === 'peel' && isStickerApplied && !isCenter) {
+        // Corner-Aware Peel
+        isPeeling = true;
+        if (forcedCorner) {
+          currentCorner = forcedCorner;
+        } else {
+          // Detect closest corner
+          if (normU >= 0.5 && normV >= 0.5) currentCorner = 'BR';
+          else if (normU >= 0.5 && normV < 0.5) currentCorner = 'TR';
+          else if (normU < 0.5 && normV >= 0.5) currentCorner = 'BL';
+          else currentCorner = 'TL';
+        }
+        activeCorner = currentCorner;
+        peelCornerReadout.textContent = `${currentCorner} (Active)`;
+        stickerStateReadout.textContent = `Peeling ${currentCorner} Corner...`;
+      } else {
+        // Direct Drag or Center Lift
+        isPeeling = false;
+        resetPeelVisuals();
+        document.documentElement.style.setProperty('--sticker-scale', '1.08');
+        document.documentElement.style.setProperty('--sticker-shadow-y', '38px');
+        document.documentElement.style.setProperty('--sticker-shadow-blur', '48px');
+        stickerStateReadout.textContent = isCenter && isStickerApplied ? "Direct Center Lift!" : "Dragging Free Sticker";
+      }
+
+      function onPointerMove(ev) {
+        if (!isDragging) return;
+        const dx = ev.clientX - dragPointerStartX;
+        const dy = ev.clientY - dragPointerStartY;
+
+        // 1. PEELING STATE
+        if (isPeeling) {
+          // Calculate inward pull delta for chosen corner
+          let pullDx = 0;
+          let pullDy = 0;
+          if (currentCorner === 'BR') {
+            pullDx = Math.min(0, dx * 1.25);
+            pullDy = Math.min(0, dy * 1.25);
+          } else if (currentCorner === 'TR') {
+            pullDx = Math.min(0, dx * 1.25);
+            pullDy = Math.max(0, dy * 1.25);
+          } else if (currentCorner === 'BL') {
+            pullDx = Math.max(0, dx * 1.25);
+            pullDy = Math.min(0, dy * 1.25);
+          } else if (currentCorner === 'TL') {
+            pullDx = Math.max(0, dx * 1.25);
+            pullDy = Math.max(0, dy * 1.25);
+          }
+
+          const pullDist = Math.hypot(pullDx, pullDy);
+          const peelProgress = Math.min(1.2, pullDist / detachThreshold);
+
+          renderPeelState(currentCorner, pullDx, pullDy);
+
+          // Highlight tilts with paper curl
+          updateHighlightPosition(peelProgress * 0.7, peelProgress * 0.5);
+          stickerStateReadout.textContent = `Peeling ${currentCorner}... ${Math.round(peelProgress * 100)}% (Pull > ${detachThreshold}px)`;
+
+          // DETACHMENT THRESHOLD POP!
+          if (pullDist >= detachThreshold) {
+            isPeeling = false;
+            isStickerApplied = false;
+            resetPeelVisuals();
+
+            // Spring scale pop
+            gsap.fromTo(document.documentElement, 
+              { '--sticker-scale': 0.94 }, 
+              { '--sticker-scale': 1.08, '--sticker-shadow-y': '38px', '--sticker-shadow-blur': '48px', duration: 0.3, ease: "back.out(2)" }
+            );
+            stickerStateReadout.textContent = "✦ Disconnected! Free Floating Drag";
+          }
+          return;
+        }
+
+        // 2. FREE DRAG STATE
+        currentStickerX = dragStickerStartX + dx;
+        currentStickerY = dragStickerStartY + dy;
+        document.documentElement.style.setProperty('--sticker-x', `${currentStickerX}px`);
+        document.documentElement.style.setProperty('--sticker-y', `${currentStickerY}px`);
+
+        // Check hover proximity to dock
+        const distToDock = Math.hypot(currentStickerX, currentStickerY);
+        dockSlot.classList.toggle('highlight-hover', distToDock < 140);
+
+        // Highlight tracks canvas position
+        const rectCanvas = canvasArea.getBoundingClientRect();
+        const normX = Math.max(-1.1, Math.min(1.1, (currentStickerX / (rectCanvas.width * 0.4))));
+        const normY = Math.max(-1.1, Math.min(1.1, (currentStickerY / (rectCanvas.height * 0.4))));
+        updateHighlightPosition(normX, normY);
+      }
+
+      function onPointerUp(ev) {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.classList.remove('is-dragging');
+        dockSlot.classList.remove('highlight-hover');
+
+        try { stickerWrap.releasePointerCapture(ev.pointerId); } catch(err) {}
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
+
+        // A. Released mid-peel (Didn't disconnect) -> Smooth spring back flat
+        if (isPeeling) {
+          isPeeling = false;
+          stickerStateReadout.textContent = "Peel Released: Snap Back Flat";
+          
+          let curDx = 0, curDy = 0;
+          const dx = ev.clientX - dragPointerStartX;
+          const dy = ev.clientY - dragPointerStartY;
+          if (currentCorner === 'BR') { curDx = Math.min(0, dx * 1.25); curDy = Math.min(0, dy * 1.25); }
+          else if (currentCorner === 'TR') { curDx = Math.min(0, dx * 1.25); curDy = Math.max(0, dy * 1.25); }
+          else if (currentCorner === 'BL') { curDx = Math.max(0, dx * 1.25); curDy = Math.min(0, dy * 1.25); }
+          else if (currentCorner === 'TL') { curDx = Math.max(0, dx * 1.25); curDy = Math.max(0, dy * 1.25); }
+
+          const animObj = { dx: curDx, dy: curDy };
+          gsap.to(animObj, {
+            dx: 0,
+            dy: 0,
+            duration: 0.3,
+            ease: "back.out(1.4)",
+            onUpdate: () => {
+              renderPeelState(currentCorner, animObj.dx, animObj.dy);
+            },
+            onComplete: () => {
+              resetPeelVisuals();
+              isStickerApplied = true;
+              stickerStateReadout.textContent = "Applied (Seated on Dock)";
+            }
+          });
+          return;
+        }
+
+        // B. Put sticker down
+        document.documentElement.style.setProperty('--sticker-scale', '1');
+        document.documentElement.style.setProperty('--sticker-shadow-y', '16px');
+        document.documentElement.style.setProperty('--sticker-shadow-blur', '28px');
+
+        const distToDock = Math.hypot(currentStickerX, currentStickerY);
+
+        // C. Snap back to dock IF Spring Snap is enabled OR dropped within 130px of dock
+        if (dragBehavior === 'snap' || distToDock < 130) {
+          stickerStateReadout.textContent = "Applying: Reverse-Peel Settle...";
+
+          // Move back to dock (0, 0)
+          gsap.to({ x: currentStickerX, y: currentStickerY }, {
+            x: 0,
+            y: 0,
+            duration: 0.38,
+            ease: "power2.out",
+            onUpdate: function() {
+              currentStickerX = this.targets()[0].x;
+              currentStickerY = this.targets()[0].y;
+              document.documentElement.style.setProperty('--sticker-x', `${currentStickerX}px`);
+              document.documentElement.style.setProperty('--sticker-y', `${currentStickerY}px`);
+            }
+          });
+
+          // REVERSE-PEEL SETTLE ANIMATION (Flattens corner smoothly back onto dock)
+          if (detachMode === 'peel') {
+            const peelAnim = { p: 1 };
+            gsap.fromTo(peelAnim, 
+              { p: 1 }, 
+              {
+                p: 0,
+                duration: 0.38,
+                ease: "power2.out",
+                onUpdate: () => {
+                  let pullX = 0, pullY = 0;
+                  const dist = peelAnim.p * 50;
+                  if (currentCorner === 'BR') { pullX = -dist; pullY = -dist; }
+                  else if (currentCorner === 'TR') { pullX = -dist; pullY = dist; }
+                  else if (currentCorner === 'BL') { pullX = dist; pullY = -dist; }
+                  else if (currentCorner === 'TL') { pullX = dist; pullY = dist; }
+                  renderPeelState(currentCorner, pullX, pullY);
+                },
+                onComplete: () => {
+                  resetPeelVisuals();
+                  isStickerApplied = true;
+                  stickerStateReadout.textContent = "Applied (Seated on Dock)";
+                  // Subtle settle vibration
+                  gsap.fromTo(stickerWrap, { y: -2.5 }, { y: 0, duration: 0.2, ease: "bounce.out" });
+                }
+              }
+            );
+          } else {
+            isStickerApplied = true;
+            stickerStateReadout.textContent = "Applied (Seated on Dock)";
+          }
+
+          // Center highlight
+          gsap.to(document.documentElement, {
+            '--diag-pos': '50%',
+            duration: 0.4
+          });
+        } else {
+          // Stay Where Dropped (Infinitely re-draggable from this exact spot!)
+          isStickerApplied = false;
+          stickerStateReadout.textContent = "Dropped on Surface (Click to grab again)";
+          gsap.fromTo(stickerWrap, { scale: 0.97 }, { scale: 1, duration: 0.25, ease: "back.out(1.5)" });
+        }
+      }
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerUp);
+    });
+
+    // ----------------------------------------------------
+    // HOVER PROXIMITY TILT (ONLY HIGHLIGHT TIED TO TILT)
+    // ----------------------------------------------------
+    canvasArea.addEventListener('pointermove', (e) => {
+      if (isDragging || currentDriver !== 'mouse') return;
+
+      const rect = canvasArea.getBoundingClientRect();
+      const normX = (e.clientX - (rect.left + rect.width / 2)) / (rect.width * 0.45);
+      const normY = (e.clientY - (rect.top + rect.height / 2)) / (rect.height * 0.45);
+
+      updateHighlightPosition(normX, normY);
+    });
+
+    canvasArea.addEventListener('pointerleave', () => {
+      if (isDragging || currentDriver !== 'mouse') return;
+      if (isStickerApplied) {
+        updateHighlightPosition(0, 0);
+      }
+    });
+
+    // ----------------------------------------------------
+    // AUTOMATED BREATHE DRIVER (1 CYCLE WITH POWER2.OUT & SNAPPY DELAY)
+    // ----------------------------------------------------
+    function setDriver(driver) {
+      currentDriver = driver;
+      document.getElementById('btnDriverDrag').classList.toggle('active', driver === 'mouse');
+      document.getElementById('btnDriverAuto').classList.toggle('active', driver === 'auto');
+
+      if (autoBreatheTimeline) {
+        autoBreatheTimeline.kill();
+        autoBreatheTimeline = null;
+      }
+
+      if (driver === 'auto') {
+        stickerStateReadout.textContent = "Auto Breathe: 1 Cycle Out Sweep";
+        
+        // Single Unidirectional Sweep with power2.out ease and snappy 0.55s pause
+        const proxy = { val: -1.2 };
+        autoBreatheTimeline = gsap.timeline({ repeat: -1, repeatDelay: 0.55 });
+
+        autoBreatheTimeline.fromTo(proxy, 
+          { val: -1.2 }, 
+          {
+            val: 1.2,
+            duration: 1.7,
+            ease: "power2.out",
+            onUpdate: () => {
+              updateHighlightPosition(proxy.val, proxy.val * 0.4);
+            }
+          }
+        );
+      } else {
+        stickerStateReadout.textContent = isStickerApplied ? "Applied (Seated on Dock)" : "Dropped on Surface";
+      }
+    }
+
+    // ----------------------------------------------------
+    // MOBILE GYROSCOPE (DeviceOrientation API)
+    // ----------------------------------------------------
+    function enableMobileGyro() {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(permissionState => {
+            if (permissionState === 'granted') {
+              bindGyroEvents();
+            } else {
+              alert('Gyroscope permission denied.');
+            }
+          })
+          .catch(console.error);
+      } else {
+        bindGyroEvents();
+      }
+    }
+
+    function bindGyroEvents() {
+      currentDriver = 'gyro';
+      stickerStateReadout.textContent = "📱 Mobile Gyroscope Active";
+      const btn = document.getElementById('btnRequestGyro');
+      btn.style.background = '#4ade80';
+      btn.style.color = '#000';
+      btn.textContent = "✓ Gyroscope Connected (Tilt Phone)";
+
+      window.addEventListener('deviceorientation', (e) => {
+        if (!e.gamma && !e.beta) return;
+        const normX = Math.max(-1.1, Math.min(1.1, e.gamma / 30));
+        const normY = Math.max(-1.1, Math.min(1.1, (e.beta - 38) / 25));
+
+        // ONLY HIGHLIGHT IS TIED TO TILT (STICKER REMAINS STRICTLY FLAT)
+        updateHighlightPosition(normX, normY);
+      });
+    }
+
+    // ----------------------------------------------------
+    // DESKTOP VIRTUAL GYROSCOPE JOYSTICK
+    // ----------------------------------------------------
+    const gyroTrack = document.getElementById('gyroTrack');
+    const gyroPuck = document.getElementById('gyroPuck');
+    let isDraggingPuck = false;
+
+    gyroTrack.addEventListener('pointerdown', (e) => {
+      isDraggingPuck = true;
+      currentDriver = 'puck';
+      stickerStateReadout.textContent = "Virtual Gyro Joystick";
+
+      function onMove(ev) {
+        if (!isDraggingPuck) return;
+        const rect = gyroTrack.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        const maxRadius = 38;
+        let dx = ev.clientX - centerX;
+        let dy = ev.clientY - centerY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > maxRadius) {
+          dx = (dx / dist) * maxRadius;
+          dy = (dy / dist) * maxRadius;
+        }
+
+        gyroPuck.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+        const normX = dx / maxRadius;
+        const normY = dy / maxRadius;
+
+        // ONLY HIGHLIGHT TIED TO TILT
+        updateHighlightPosition(normX, normY);
+      }
+
+      function onUp() {
+        isDraggingPuck = false;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+
+        gsap.to(gyroPuck, {
+          x: 0,
+          y: 0,
+          duration: 0.35,
+          ease: "elastic.out(1, 0.5)"
+        });
+        updateHighlightPosition(0, 0);
+      }
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+
+    // Initialize Default State
+    applySettings();
+    updateHighlightPosition(0, 0);
+  </script>
+</body>
+</html>

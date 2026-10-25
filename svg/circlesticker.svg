@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 230" width="220" height="230">
+  <defs>
+    <filter id="circleDropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Thick White Die-Cut Vinyl Sticker Border -->
+  <circle cx="110" cy="115" r="96" fill="#ffffff" filter="url(#circleDropShadow)"/>
+
+  <!-- Main Dark Tactile Circle Body -->
+  <circle cx="110" cy="115" r="91" fill="#222222"/>
+
+  <!-- Subtle Inner Guide Ring -->
+  <circle cx="110" cy="115" r="82" fill="none" stroke="#333333" stroke-width="1.2" stroke-dasharray="4 4"/>
+
+  <!-- Minimal Center Placeholder Text -->
+  <text x="110" y="112" fill="#888888" font-family="'Departure Mono', monospace, sans-serif" font-size="13" font-weight="600" text-anchor="middle" letter-spacing="1">ABOUT</text>
+  <text x="110" y="128" fill="#555555" font-family="'Departure Mono', monospace, sans-serif" font-size="8" text-anchor="middle" letter-spacing="0.8">PLACEHOLDER</text>
+</svg>

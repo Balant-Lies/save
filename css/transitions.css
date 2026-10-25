@@ -1,0 +1,38 @@
+/* ====================================================
+   PAGE TRANSITION STYLES
+   Circular expanding mask animation for page transitions.
+   ==================================================== */
+
+/* Expanding circular window - pointer-events: none ensures buttons are 100% interactive instantly! */
+.reveal-mask {
+  position: fixed;
+  left: var(--vt-cx, 50%);
+  top: var(--vt-cy, 50%);
+  width: 160px;
+  height: 160px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 250vmax #ffffff;
+  pointer-events: none !important;
+  z-index: 9999;
+  animation: reveal-expand var(--vt-duration, 0.5s) cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes reveal-expand {
+  0% {
+    width: 160px;
+    height: 160px;
+    opacity: 1;
+  }
+  99% {
+    width: 320vmax;
+    height: 320vmax;
+    opacity: 1;
+  }
+  100% {
+    width: 320vmax;
+    height: 320vmax;
+    opacity: 0;
+    visibility: hidden;
+  }
+}

@@ -1,0 +1,331 @@
+/* ====================================================
+   WORK NAVIGATION STICKER DESIGN SYSTEM
+   - CRT Monitor Art with Hand-Drawn Boil Filter
+   - Glossy Vinyl Specular Sheen (Studio Bar Overlay)
+   - Corner Peel Vector Punch-Out Affordance
+   - Adaptive Floating HUD Pill (Animated Width)
+   ==================================================== */
+
+:root {
+  /* Specular & Gloss Dynamics */
+  --diag-pos: 50%;
+  --sheen-opacity: 0.45;
+  --sheen-blend: overlay;
+  --gloss-angle: -140deg;
+  --gloss-tint: 255, 255, 255;
+
+  /* Drop Shadow Filter (Disabled / None for clean flush look) */
+  --sticker-shadow-filter: none;
+  --sticker-shadow-y: 0px;
+  --sticker-shadow-blur: 0px;
+  --sticker-shadow-opacity: 0;
+
+  /* Global Sticker Scale */
+  --sticker-scale: 1.0;
+
+  /* Corner Peel Affordance Offset & Dynamics */
+  --peel-x: 71px;
+  --peel-y: 67px;
+  --peel-scale: 1.3;
+  --peel-rotate: 0deg;
+}
+
+/* ----------------------------------------------------
+   THE DRAGGABLE STICKER ROOT
+   ---------------------------------------------------- */
+.sticker-root {
+  position: absolute;
+  width: calc(220px * var(--sticker-scale, 1));
+  height: calc(230px * var(--sticker-scale, 1));
+  top: 0;
+  left: 0;
+  cursor: grab;
+  touch-action: none;
+  will-change: transform;
+  z-index: 1000;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sticker-root:active,
+body.is-dragging .sticker-root {
+  cursor: grabbing !important;
+}
+
+.sticker-body {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  transition: transform 0.15s ease-out;
+  will-change: transform;
+}
+
+.sticker-root:hover .sticker-body {
+  transform: translateY(-4px) scale(1.02);
+}
+
+body.is-dragging .sticker-root .sticker-body {
+  transform: scale(1.06);
+}
+
+/* Drop Shadow Container (Zero soft drop shadow by default) */
+.sticker-shadow-wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  filter: var(--sticker-shadow-filter, none);
+}
+
+/* Sticker Art Wrapper (Supports 2 FPS Organic Boil) */
+.sticker-art-wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform-origin: center center;
+}
+
+.sticker-art-wrap.has-boil {
+  filter: url(#stickerBoilFilter);
+}
+
+/* CRT Monitor Base PNG */
+.sticker-base-png {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------
+   MASKED SPECULAR GLOSSY LAYER
+   ---------------------------------------------------- */
+.sticker-highlight-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+
+  mix-blend-mode: var(--sheen-blend, overlay);
+  opacity: var(--sheen-opacity, 0.45);
+  transition: opacity 0.12s ease-out;
+}
+
+#stickerRoot .sticker-highlight-layer {
+  -webkit-mask-image: url('../svg/workstickerpng.png');
+  mask-image: url('../svg/workstickerpng.png');
+}
+
+#aboutStickerRoot .sticker-highlight-layer {
+  -webkit-mask-image: url('../svg/circlesticker.svg');
+  mask-image: url('../svg/circlesticker.svg');
+}
+
+/* Ambient Gloss Resin Dome (Clear-coat depth) */
+.sticker-gloss-dome {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse 95% 75% at 50% 18%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.05) 45%, transparent 75%);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.85;
+}
+
+/* Dynamic Gloss Specular Glint (Sweeps on motion/tilt) */
+.sticker-gloss-glint {
+  position: absolute;
+  inset: -60%;
+  width: 220%;
+  height: 220%;
+  pointer-events: none;
+  will-change: background;
+}
+
+/* ----------------------------------------------------
+   CORNER PEEL AFFORDANCE & VECTOR PUNCH-OUT
+   - Punch-Out: Pure black #000000 mask punches out underlying vector layers
+   - Trajectory: Exact original trajectory (+7.145px X, +45.276px Y)
+   - Dynamic Offsets: Parametric translate, scale, and rotate
+   ---------------------------------------------------- */
+.sticker-peel-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  transform: translate(var(--peel-x), var(--peel-y)) scale(var(--peel-scale)) rotate(var(--peel-rotate));
+  transform-origin: 200px 240px;
+  z-index: 10;
+}
+
+.peel-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Continuous Loop Mode Keyframes */
+@keyframes kf_sim_peel_trans {
+  0%, 4.68% {
+    transform: translate(246.888px, 210.66px) rotate(111.625deg);
+    animation-timing-function: cubic-bezier(0, 0.274, 0.58, 1);
+  }
+  91.63%, 100% {
+    transform: translate(254.033px, 255.936px) rotate(111.625deg);
+  }
+}
+@keyframes kf_sim_peel_fill {
+  0%, 4.68% { fill: #8C8585; animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1); }
+  91.63%, 100% { fill: #000000; }
+}
+@keyframes kf_sim_main_fill {
+  0%, 4.68% { fill: #8C8585; animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1); }
+  91.63%, 100% { fill: #000000; }
+}
+@keyframes kf_sim_mask_trans {
+  0%, 4.68% {
+    transform: translate(148.874px, 226.758px) rotate(-10.7228deg);
+    animation-timing-function: cubic-bezier(0, 0.274, 0.58, 1);
+  }
+  91.63%, 100% {
+    transform: translate(153.703px, 245.503px) rotate(-10.7228deg);
+  }
+}
+
+/* Base Resting Styles */
+.peel-flap-path {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  transform: translate(246.888px, 210.66px) rotate(111.625deg);
+  fill: #8C8585;
+  transition: transform 0.38s cubic-bezier(0, 0.274, 0.58, 1), fill 0.32s cubic-bezier(0.5, 0, 0.5, 1);
+}
+.peel-mask-path {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  transform: translate(148.874px, 226.758px) rotate(-10.7228deg);
+  fill: #000000;
+  transition: transform 0.38s cubic-bezier(0, 0.274, 0.58, 1);
+}
+.peel-main-path {
+  fill: #8C8585;
+  transition: fill 0.32s cubic-bezier(0.5, 0, 0.5, 1);
+}
+
+/* 1. INACTIVE STATE (Frame 0: Resting Flat) */
+.peel-state-inactive .peel-main-path {
+  animation: none !important;
+  fill: #8C8585 !important;
+}
+.peel-state-inactive .peel-flap-path {
+  animation: none !important;
+  transform: translate(246.888px, 210.66px) rotate(111.625deg) !important;
+  fill: #8C8585 !important;
+  transform-origin: 0 0;
+}
+.peel-state-inactive .peel-mask-path {
+  animation: none !important;
+  transform: translate(148.874px, 226.758px) rotate(-10.7228deg) !important;
+  fill: #000000 !important;
+  transform-origin: 0 0;
+}
+
+/* 2. ACTIVE STATE (100% Peeled when Applied to Card) */
+.peel-state-active .peel-main-path {
+  animation: none !important;
+  fill: #000000 !important;
+  transition: fill 0.32s cubic-bezier(0.5, 0, 0.5, 1);
+}
+.peel-state-active .peel-flap-path {
+  animation: none !important;
+  transform: translate(254.033px, 255.936px) rotate(111.625deg) !important;
+  fill: #000000 !important;
+  transform-origin: 0 0;
+  transition: transform 0.38s cubic-bezier(0, 0.274, 0.58, 1), fill 0.32s cubic-bezier(0.5, 0, 0.5, 1);
+}
+.peel-state-active .peel-mask-path {
+  animation: none !important;
+  transform: translate(153.703px, 245.503px) rotate(-10.7228deg) !important;
+  fill: #000000 !important;
+  transform-origin: 0 0;
+  transition: transform 0.38s cubic-bezier(0, 0.274, 0.58, 1);
+}
+
+/* 3. LOOP STATE */
+.peel-state-loop .peel-main-path {
+  animation: kf_sim_main_fill 0.8s linear infinite !important;
+}
+.peel-state-loop .peel-flap-path {
+  transform-origin: 0 0;
+  animation: kf_sim_peel_trans 0.8s linear infinite, kf_sim_peel_fill 0.8s linear infinite !important;
+}
+.peel-state-loop .peel-mask-path {
+  transform-origin: 0 0;
+  animation: kf_sim_mask_trans 0.8s linear infinite !important;
+  fill: #000000 !important;
+}
+
+/* Suppress transitions during resize / Ctrl-zoom so peel shapes stay 100% locked */
+body.is-resizing .peel-flap-path,
+body.is-resizing .peel-mask-path,
+body.is-resizing .peel-main-path,
+body.is-resizing .sticker-peel-overlay {
+  transition: none !important;
+}
+
+/* ====================================================
+   SLEEPING / INACTIVE STICKER STATE
+   Click/Tap toggles sleeping: muted grayscale/sepia filter,
+   flat unpeeled corner, dimmed sheen, and suspended modifier.
+   ==================================================== */
+.sticker-root {
+  transition: filter 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.28s ease;
+}
+
+.sticker-root.is-sleeping {
+  filter: grayscale(1) sepia(0.18) contrast(0.92);
+  opacity: 1;
+}
+
+.sticker-root.is-sleeping .sticker-peel-overlay .peel-main-path {
+  animation: none !important;
+  fill: #8C8585 !important;
+}
+
+.sticker-root.is-sleeping .sticker-peel-overlay .peel-flap-path {
+  animation: none !important;
+  transform: translate(246.888px, 210.66px) rotate(111.625deg) !important;
+  fill: #8C8585 !important;
+}
+
+.sticker-root.is-sleeping .sticker-peel-overlay .peel-mask-path {
+  animation: none !important;
+  transform: translate(148.874px, 226.758px) rotate(-10.7228deg) !important;
+  fill: #000000 !important;
+}
+
+.sticker-root.is-sleeping .sticker-highlight-layer {
+  opacity: 0.08 !important;
+}
+
+

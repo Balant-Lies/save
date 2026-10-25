@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Navigation Mechanics & Physical Verbs Lab</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <style>
+    :root {
+      --bg: #0e0e11;
+      --panel-bg: #16161a;
+      --card-bg: #282828;
+      --border: #2a2a34;
+      --border-focus: #444456;
+      --accent: #1A885C;
+      --accent-light: #2dd4bf;
+      --text: #f0f0f4;
+      --text-muted: #888894;
+      --peel-green: #1A885C;
+      --card-peel-stroke: #000000;
+      --card-peel-outer-stroke: #ffffff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Departure Mono', monospace, system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Top Lab Controller */
+    header.lab-header {
+      padding: 14px 24px;
+      background: rgba(18, 18, 22, 0.98);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+
+    .lab-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--accent-light);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: 0.04em;
+    }
+
+    .concept-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .concept-btn {
+      background: #1f1f26;
+      border: 1px solid #33333f;
+      color: var(--text-muted);
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .concept-btn:hover {
+      background: #2a2a35;
+      color: #fff;
+      border-color: #4b4b5c;
+    }
+
+    .concept-btn.active {
+      background: var(--accent);
+      border-color: var(--accent-light);
+      color: #fff;
+    }
+
+    .view-toggle {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .toggle-btn {
+      background: #1a1a22;
+      border: 1px solid #30303c;
+      color: #bbb;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .toggle-btn.active {
+      background: #2e2e3c;
+      color: #fff;
+      border-color: var(--accent-light);
+    }
+
+    /* Main Stage */
+    main.stage {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 20px;
+      background: radial-gradient(circle at 50% 30%, #16161e 0%, #0c0c0e 100%);
+    }
+
+    /* Concept Card Box */
+    .concept-card {
+      display: none;
+      width: 100%;
+      max-width: 900px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      flex-direction: column;
+      gap: 18px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .concept-card.active {
+      display: flex;
+    }
+
+    .card-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+      gap: 16px;
+    }
+
+    .concept-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.02em;
+    }
+
+    .concept-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .verb-badge {
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: #20202a;
+      border: 1px solid #383848;
+      color: var(--accent-light);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    /* Sandbox Surface */
+    .interactive-surface {
+      min-height: 280px;
+      background: #09090b;
+      border: 1px dashed #24242e;
+      border-radius: 10px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: visible;
+    }
+
+    /* Mobile Frame Preview */
+    .mobile-frame-container {
+      display: none;
+      width: 100%;
+      justify-content: center;
+      padding: 10px 0;
+    }
+
+    .stage.is-mobile-view .mobile-frame-container {
+      display: flex;
+    }
+
+    .stage.is-mobile-view .interactive-surface {
+      display: none;
+    }
+
+    .phone-mock {
+      width: 340px;
+      height: 580px;
+      background: #141416;
+      border: 6px solid #2b2b36;
+      border-radius: 36px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+    }
+
+    .phone-speaker {
+      width: 60px;
+      height: 4px;
+      background: #333;
+      border-radius: 3px;
+      margin: 12px auto 0;
+    }
+
+    .phone-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px;
+      position: relative;
+    }
+
+    .phone-content-dummy {
+      color: #444;
+      font-size: 0.75rem;
+      line-height: 1.6;
+      padding-top: 10px;
+    }
+
+    .phone-bottom-dock {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .thumb-zone-label {
+      font-size: 0.68rem;
+      color: #666;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .thumb-zone-label::before {
+      content: '';
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* Live Data & Controls Bar */
+    .lab-controls-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      background: #111115;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #202028;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .control-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .control-item label {
+      color: #aaa;
+    }
+
+    .control-item input[type="range"] {
+      width: 80px;
+      accent-color: var(--accent);
+    }
+
+    .status-readout {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      background: #111115;
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid #1f1f26;
+    }
+
+    .status-highlight {
+      color: #4ade80;
+      font-weight: 700;
+    }
+
+    .vertex-dump {
+      font-size: 0.7rem;
+      color: #777;
+      max-height: 48px;
+      overflow-y: auto;
+      background: #09090c;
+      padding: 6px 10px;
+      border-radius: 4px;
+      border: 1px solid #1a1a22;
+      font-family: monospace;
+      white-space: nowrap;
+    }
+
+    /* SVG Interaction Elements */
+    svg.nav-svg-layer {
+      width: 100%;
+      max-width: 740px;
+      height: auto;
+      overflow: visible;
+    }
+
+    .draggable-peel-flap {
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .draggable-peel-flap:active,
+    body.is-dragging .draggable-peel-flap {
+      cursor: grabbing !important;
+    }
+
+    /* Diamond Action Buttons (like sqA, sqB, sqC in cards) */
+    .diamond-btn {
+      cursor: pointer;
+      transform-origin: center;
+      transition: transform 0.15s ease;
+    }
+    .diamond-btn:hover {
+      transform: scale(1.25);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- LAB CONTROLLER HEADER -->
+  <header class="lab-header">
+    <div class="lab-title">
+      <span>📐 Navigation Physics Lab</span>
+      <span style="font-size: 0.72rem; color: #666; font-weight: normal;">| BESPOKE VECTOR EXPERIMENTS</span>
+    </div>
+
+    <!-- 5 Core Physical Experiments -->
+    <div class="concept-tabs">
+      <button class="concept-btn active" data-concept="concept1">
+        <span>1. Horizontal Card-Fold (SVG Concept)</span>
+      </button>
+      <button class="concept-btn" data-concept="concept2">
+        <span>2. Fold Revealing Card Diamonds</span>
+      </button>
+      <button class="concept-btn" data-concept="concept3">
+        <span>3. Perforated Ticket Tear-Off</span>
+      </button>
+      <button class="concept-btn" data-concept="concept4">
+        <span>4. Hinged Matchbook Fold</span>
+      </button>
+      <button class="concept-btn" data-concept="concept5">
+        <span>5. Adhesive Tape Peel</span>
+      </button>
+    </div>
+
+    <!-- Viewport Context Switch -->
+    <div class="view-toggle">
+      <span>Context:</span>
+      <button id="toggleDesktop" class="toggle-btn active">Desktop (Top)</button>
+      <button id="toggleMobile" class="toggle-btn">Mobile (Bottom-Left)</button>
+    </div>
+  </header>
+
+  <!-- STAGE -->
+  <main id="mainStage" class="stage">
+
+    <!-- ====================================================
+         CONCEPT 1: HORIZONTAL CARD-FOLD PEEL (The User's SVG Concept with Card Physics)
+         ==================================================== -->
+    <div id="concept1" class="concept-card active">
+      <div class="card-header-bar">
+        <div>
+          <div class="concept-name">Concept 1: Horizontal Card-Fold Peel (SVG Geometry + Card Fold Logic)</div>
+          <div class="concept-desc">
+            Directly translating your card corner peel into a <strong>horizontal paper fold</strong>.
+            As you drag the flap across the ribbon:
+            (1) The white flap deforms with physical tension (morphing towards <code>testtopnav.svg</code> coords),
+            (2) The <strong>underside green peel (<code>#1A885C</code>)</strong> folds back with its double outline (black front, white back),
+            (3) Inverted active black text is revealed via dynamic clipping,
+            (4) When released, it springs and flattens over WORK, ARCHIVE, or CONTACT.
+          </div>
+        </div>
+        <span class="verb-badge">Verb: Horizontal Peel</span>
+      </div>
+
+      <!-- DESKTOP SURFACE -->
+      <div class="interactive-surface">
+        <svg id="c1_svg" class="nav-svg-layer" viewBox="0 0 740 210" fill="none">
+          <defs>
+            <!-- Dynamic aperture clip path linked directly to horizontal fold position -->
+            <clipPath id="c1_apertureClip">
+              <path id="c1_clipShape" d="M44.07 54.45H164.54V151.95H44.07V112.95L56.57 104.95L44.07 96.45V54.45Z" />
+            </clipPath>
+          </defs>
+
+          <!-- LAYER 0: Background Paper Ribbon (#EAEAEA with authentic ticket deckle edge) -->
+          <path id="c1_ribbonBg"
+                d="M43 54.32H712.07L714.71 69.47L727.04 81.97L705.47 107.97L727.04 113.97L731 134.97L712.07 154.32H43V54.32Z"
+                fill="#EAEAEA" />
+
+          <!-- LAYER 1: Base Grey Unselected Text Layer -->
+          <g id="c1_baseText" opacity="1">
+            <g transform="translate(0, -44.5)">
+              <!-- WORK (X ≈ 36-97) -->
+              <path d="M36.44 138.52H38.80V150.35H36.44V138.52ZM45.90 138.52H48.27V152.72H43.53V150.35H45.90V138.52ZM43.53 150.35H41.17V138.52H43.53V150.35ZM38.80 150.35H41.17V152.72H38.80V150.35ZM55.37 138.52H62.47V140.89H55.37V138.52ZM62.47 140.89H64.84V150.35H62.47V140.89ZM53.01 140.89H55.37V150.35H53.01V140.89ZM55.37 150.35H62.47V152.72H55.37V150.35ZM74.31 138.52V140.89H76.67V143.26H74.31V150.35H79.04V152.72H69.58V150.35H71.94V140.89H69.58V138.52H74.31ZM81.40 138.52V140.89H76.67V138.52H81.40ZM86.14 133.79H88.51V145.62H90.88V143.26H93.24V147.99H88.51V152.72H86.14V133.79ZM95.61 138.52H97.97V140.89H95.61V138.52ZM93.24 140.89H95.61V143.26H93.24V140.89ZM93.24 147.99H95.61V150.35H93.24V147.99ZM95.61 150.35H97.97V152.72H95.61V150.35Z" fill="#787878"/>
+            </g>
+            <g transform="translate(0, -39)">
+              <!-- ARCHIVE (X ≈ 252-363) -->
+              <path d="M254.80 138.16H261.90V140.53H254.80V138.16ZM252.44 140.53H254.80V149.99H252.44V140.53ZM254.80 149.99H261.90V152.36H254.80V149.99ZM261.90 140.53H264.27V142.90H261.90V140.53ZM261.90 147.63H264.27V149.99H261.90V147.63ZM271.37 138.16H278.47V140.53H271.37V138.16ZM278.47 140.53H280.84V149.99H278.47V140.53ZM269.01 140.53H271.37V149.99H269.01V140.53ZM271.37 149.99H278.47V152.36H271.37V149.99ZM285.58 138.16H287.94V140.53H290.31V142.90H287.94V152.36H285.58V138.16ZM290.31 138.16H295.04V140.53H290.31V138.16ZM295.04 140.53H297.40V152.36H295.04V140.53ZM304.51 133.43H306.88V138.16H313.97V140.53H306.88V149.99H304.51V140.53H302.14V138.16H304.51V133.43ZM306.88 149.99H311.61V152.36H306.88V149.99ZM311.61 147.63H313.97V149.99H311.61V147.63ZM318.71 145.26H321.08V149.99H318.71V145.26ZM321.08 149.99H325.81V152.36H321.08V149.99ZM325.81 147.63H328.18V145.26H321.08V142.90H328.18V140.53H330.54V152.36H328.18V149.99H325.81V147.63ZM321.08 138.16H328.18V140.53H321.08V138.16ZM337.65 138.16H344.74V140.53H337.65V138.16ZM335.28 140.53H337.65V149.99H335.28V140.53ZM337.65 149.99H344.74V152.36H337.65V149.99ZM344.74 140.53H347.11V142.90H344.74V140.53ZM344.74 147.63H347.11V149.99H344.74V147.63ZM354.22 133.43H356.58V138.16H363.68V140.53H356.58V149.99H354.22V140.53H351.85V138.16H354.22V133.43ZM356.58 149.99H361.31V152.36H356.58V149.99ZM361.31 147.63H363.68V149.99H361.31V147.63Z" fill="#B5B5B5"/>
+            </g>
+            <g transform="translate(0, -39)">
+              <!-- CONTACT (X ≈ 491-569) -->
+              <path d="M491.44 145.26H493.80V149.99H491.44V145.26ZM493.80 149.99H498.54V152.36H493.80V149.99ZM498.54 147.63H500.90V145.26H493.80V142.90H500.90V140.53H503.27V152.36H500.90V149.99H498.54V147.63ZM493.80 138.16H500.90V140.53H493.80V138.16ZM508.01 133.43H510.37V140.53H512.74V142.90H510.37V147.63H512.74V149.99H510.37V152.36H508.01V133.43ZM512.74 149.99H517.47V152.36H512.74V149.99ZM517.47 140.53H519.84V149.99H517.47V140.53ZM512.74 138.16H517.47V140.53H512.74V138.16ZM526.94 138.16H534.04V140.53H526.94V138.16ZM534.04 140.53H536.40V149.99H534.04V140.53ZM524.58 140.53H526.94V149.99H524.58V140.53ZM526.94 149.99H534.04V152.36H526.94V149.99ZM541.15 138.16H543.51V149.99H541.15V138.16ZM543.51 149.99H548.24V152.36H543.51V149.99ZM550.61 138.16H552.97V152.36H550.61V149.99H548.24V147.63H550.61V138.16ZM560.08 133.43H562.44V138.16H569.54V140.53H562.44V149.99H560.08V140.53H557.71V138.16H560.08V133.43ZM562.44 149.99H567.18V152.36H562.44V149.99ZM567.18 147.63H569.54V149.99H567.18V147.63Z" fill="#B5B5B5"/>
+            </g>
+          </g>
+
+          <!-- LAYER 2: The Signature Green Underside Peel (Revealed behind the folding flap) -->
+          <!-- Features Compound Dual Outline (Black front line + White back line) -->
+          <g id="c1_greenPeelGroup" opacity="0">
+            <!-- White Outer Outline (Behind) -->
+            <path id="c1_peelOuterPath" d="" fill="none" stroke="var(--card-peel-outer-stroke)" stroke-width="4.5" stroke-linejoin="round" />
+            <!-- Green Peel Body + Black Front Outline -->
+            <path id="c1_peelPath" d="" fill="var(--peel-green)" stroke="var(--card-peel-stroke)" stroke-width="1.5" stroke-linejoin="round" />
+          </g>
+
+          <!-- LAYER 3: The Moving White Paper Fold Flap (With Notch) -->
+          <g id="c1_flapGroup" class="draggable-peel-flap">
+            <!-- White flap shadow -->
+            <path id="c1_flapShadow" d="" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="6" />
+            <!-- White Flap Body -->
+            <path id="c1_flapBody" d="" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-linejoin="round" />
+          </g>
+
+          <!-- LAYER 4: Clipped Active Inverted Black Text -->
+          <g clip-path="url(#c1_apertureClip)">
+            <g transform="translate(0, -44.5)">
+              <path d="M36.44 138.52H38.80V150.35H36.44V138.52ZM45.90 138.52H48.27V152.72H43.53V150.35H45.90V138.52ZM43.53 150.35H41.17V138.52H43.53V150.35ZM38.80 150.35H41.17V152.72H38.80V150.35ZM55.37 138.52H62.47V140.89H55.37V138.52ZM62.47 140.89H64.84V150.35H62.47V140.89ZM53.01 140.89H55.37V150.35H53.01V140.89ZM55.37 150.35H62.47V152.72H55.37V150.35ZM74.31 138.52V140.89H76.67V143.26H74.31V150.35H79.04V152.72H69.58V150.35H71.94V140.89H69.58V138.52H74.31ZM81.40 138.52V140.89H76.67V138.52H81.40ZM86.14 133.79H88.51V145.62H90.88V143.26H93.24V147.99H88.51V152.72H86.14V133.79ZM95.61 138.52H97.97V140.89H95.61V138.52ZM93.24 140.89H95.61V143.26H93.24V140.89ZM93.24 147.99H95.61V150.35H93.24V147.99ZM95.61 150.35H97.97V152.72H95.61V150.35Z" fill="#000000"/>
+            </g>
+            <g transform="translate(0, -39)">
+              <path d="M254.80 138.16H261.90V140.53H254.80V138.16ZM252.44 140.53H254.80V149.99H252.44V140.53ZM254.80 149.99H261.90V152.36H254.80V149.99ZM261.90 140.53H264.27V142.90H261.90V140.53ZM261.90 147.63H264.27V149.99H261.90V147.63ZM271.37 138.16H278.47V140.53H271.37V138.16ZM278.47 140.53H280.84V149.99H278.47V140.53ZM269.01 140.53H271.37V149.99H269.01V140.53ZM271.37 149.99H278.47V152.36H271.37V149.99ZM285.58 138.16H287.94V140.53H290.31V142.90H287.94V152.36H285.58V138.16ZM290.31 138.16H295.04V140.53H290.31V138.16ZM295.04 140.53H297.40V152.36H295.04V140.53ZM304.51 133.43H306.88V138.16H313.97V140.53H306.88V149.99H304.51V140.53H302.14V138.16H304.51V133.43ZM306.88 149.99H311.61V152.36H306.88V149.99ZM311.61 147.63H313.97V149.99H311.61V147.63ZM318.71 145.26H321.08V149.99H318.71V145.26ZM321.08 149.99H325.81V152.36H321.08V149.99ZM325.81 147.63H328.18V145.26H321.08V142.90H328.18V140.53H330.54V152.36H328.18V149.99H325.81V147.63ZM321.08 138.16H328.18V140.53H321.08V138.16ZM337.65 138.16H344.74V140.53H337.65V138.16ZM335.28 140.53H337.65V149.99H335.28V140.53ZM337.65 149.99H344.74V152.36H337.65V149.99ZM344.74 140.53H347.11V142.90H344.74V140.53ZM344.74 147.63H347.11V149.99H344.74V147.63ZM354.22 133.43H356.58V138.16H363.68V140.53H356.58V149.99H354.22V140.53H351.85V138.16H354.22V133.43ZM356.58 149.99H361.31V152.36H356.58V149.99ZM361.31 147.63H363.68V149.99H361.31V147.63Z" fill="#000000"/>
+            </g>
+            <g transform="translate(0, -39)">
+              <path d="M491.44 145.26H493.80V149.99H491.44V145.26ZM493.80 149.99H498.54V152.36H493.80V149.99ZM498.54 147.63H500.90V145.26H493.80V142.90H500.90V140.53H503.27V152.36H500.90V149.99H498.54V147.63ZM493.80 138.16H500.90V140.53H493.80V138.16ZM508.01 133.43H510.37V140.53H512.74V142.90H510.37V147.63H512.74V149.99H510.37V152.36H508.01V133.43ZM512.74 149.99H517.47V152.36H512.74V149.99ZM517.47 140.53H519.84V149.99H517.47V140.53ZM512.74 138.16H517.47V140.53H512.74V138.16ZM526.94 138.16H534.04V140.53H526.94V138.16ZM534.04 140.53H536.40V149.99H534.04V140.53ZM524.58 140.53H526.94V149.99H524.58V140.53ZM526.94 149.99H534.04V152.36H526.94V149.99ZM541.15 138.16H543.51V149.99H541.15V138.16ZM543.51 149.99H548.24V152.36H543.51V149.99ZM550.61 138.16H552.97V152.36H550.61V149.99H548.24V147.63H550.61V138.16ZM560.08 133.43H562.44V138.16H569.54V140.53H562.44V149.99H560.08V140.53H557.71V138.16H560.08V133.43ZM562.44 149.99H567.18V152.36H562.44V149.99ZM567.18 147.63H569.54V149.99H567.18V147.63Z" fill="#000000"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <!-- LIVE LAB CONTROLS -->
+      <div class="lab-controls-panel">
+        <div class="control-item">
+          <label>Wobble Lines:</label>
+          <input type="checkbox" id="c1_toggleWobble" checked>
+        </div>
+        <div class="control-item">
+          <label>Wobble Amp:</label>
+          <input type="range" id="c1_wobbleAmp" min="0" max="2.5" step="0.1" value="0.9">
+        </div>
+        <div class="control-item">
+          <label>Drag Skew:</label>
+          <input type="range" id="c1_dragSkew" min="0" max="2" step="0.1" value="1.0">
+        </div>
+        <div class="control-item">
+          <label>Snap Ease:</label>
+          <select id="c1_snapEase" style="background:#222; color:#fff; border:1px solid #444; border-radius:4px; padding:2px 6px; font-family:inherit;">
+            <option value="back.out(1.4)">Back Out (Spring)</option>
+            <option value="power2.out">Power2 Out (Smooth)</option>
+            <option value="elastic.out(1, 0.5)">Elastic Out (Jiggle)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- READOUT & COORDINATES DUMP -->
+      <div class="status-readout">
+        <span>Active Slot: <span id="c1_status" class="status-highlight">WORK</span></span>
+        <span>Drag Status: <span id="c1_dragInfo">Resting</span></span>
+      </div>
+      <div id="c1_coords" class="vertex-dump">Flap P1: (44.07, 54.45) | P2: (164.54, 54.46) | P4: (165.50, 151.95)</div>
+    </div>
+
+
+    <!-- ====================================================
+         CONCEPT 2: FOLD REVEALING ACTION DIAMONDS (100% Card System Parity)
+         ==================================================== -->
+    <div id="concept2" class="concept-card">
+      <div class="card-header-bar">
+        <div>
+          <div class="concept-name">Concept 2: Horizontal Fold Revealing Action Diamonds (sqA, sqB, sqC)</div>
+          <div class="concept-desc">
+            What if the navigation tabs are literally horizontal cards?
+            Peeling the flap back along a horizontal crease reveals the <strong>signature diamond action buttons</strong> (sqA: Summary, sqB: View Project, sqC: Media) with the dynamic Figma eye pupil tracking your cursor!
+          </div>
+        </div>
+        <span class="verb-badge">Verb: Fold & Action Reveal</span>
+      </div>
+
+      <div class="interactive-surface">
+        <svg id="c2_svg" class="nav-svg-layer" viewBox="0 0 680 180" fill="none">
+          <!-- Background Ribbon Deckle -->
+          <path d="M30 40H630L633 55L645 68L625 94L645 100L650 120L630 140H30V40Z" fill="#1c1c20" stroke="#33333e" stroke-width="2" />
+
+          <!-- Unfolded Static Tab: WORK -->
+          <g transform="translate(60, 60)">
+            <text x="0" y="28" font-family="'Departure Mono', monospace" font-size="16" font-weight="700" fill="#666">01. WORK</text>
+          </g>
+
+          <!-- FOLDABLE CARD TAB: PROJECTS (With Interactive Peel & Diamond Reveal) -->
+          <g id="c2_peelGroup" class="draggable-peel-flap" transform="translate(240, 45)">
+            <!-- Diamond Container Revealed Underneath -->
+            <rect x="0" y="0" width="180" height="90" rx="4" fill="#111114" stroke="#2a2a32" stroke-width="1.5" />
+
+            <!-- Diamond Action Buttons inside nav (sqA, sqB, sqC) -->
+            <g id="c2_btnSummary" class="diamond-btn" transform="translate(40, 45) rotate(45)">
+              <rect x="-12" y="-12" width="24" height="24" fill="#ffffff" stroke="#000" stroke-width="1" />
+              <!-- Icon inside -->
+              <circle cx="0" cy="0" r="3" fill="#1A885C" />
+            </g>
+            <text x="40" y="78" text-anchor="middle" font-size="9" fill="#888">Summary</text>
+
+            <g id="c2_btnView" class="diamond-btn" transform="translate(90, 45) rotate(45)">
+              <rect x="-12" y="-12" width="24" height="24" fill="#1A885C" stroke="#fff" stroke-width="1" />
+              <!-- Eye Inside -->
+              <ellipse cx="0" cy="0" rx="6" ry="3.5" fill="#fff" />
+              <circle id="c2_eyePupil" cx="0" cy="0" r="2" fill="#1A885C" />
+            </g>
+            <text x="90" y="78" text-anchor="middle" font-size="9" fill="#888">View</text>
+
+            <g id="c2_btnMedia" class="diamond-btn" transform="translate(140, 45) rotate(45)">
+              <rect x="-12" y="-12" width="24" height="24" fill="#ffffff" stroke="#000" stroke-width="1" />
+              <rect x="-4" y="-4" width="8" height="8" fill="#1A885C" />
+            </g>
+            <text x="140" y="78" text-anchor="middle" font-size="9" fill="#888">Media</text>
+
+            <!-- Underside Green Peel -->
+            <polygon id="c2_greenPeel" points="0,0 0,90 0,90" fill="var(--peel-green)" stroke="#000" stroke-width="1.5" />
+
+            <!-- White Fold Flap on Top -->
+            <path id="c2_flap" d="M0,0 L180,0 L180,90 L0,90 Z" fill="#ffffff" stroke="#000000" stroke-width="2" />
+            <text id="c2_flapLabel" x="90" y="52" text-anchor="middle" font-family="'Departure Mono', monospace" font-size="14" font-weight="700" fill="#000000">02. PROJECTS [PEEL]</text>
+          </g>
+
+          <!-- Tab 3: CONTACT -->
+          <g transform="translate(480, 60)">
+            <text x="0" y="28" font-family="'Departure Mono', monospace" font-size="16" font-weight="700" fill="#666">03. CONTACT</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="status-readout">
+        <span>Peel State: <span id="c2_status" class="status-highlight">Closed (Drag tab rightwards to peel open buttons)</span></span>
+        <span>Actions: Diamond buttons click to dispatch routes</span>
+      </div>
+    </div>
+
+
+    <!-- ====================================================
+         CONCEPT 3: PERFORATED TICKET TEAR-OFF (The "Tear" Verb)
+         ==================================================== -->
+    <div id="concept3" class="concept-card">
+      <div class="card-header-bar">
+        <div>
+          <div class="concept-name">Concept 3: Perforated Ticket Tear-Off (The "Tear" Verb)</div>
+          <div class="concept-desc">
+            Instead of folding or peeling, the navigation items are connected by a <strong>wobbly perforated tear seam</strong> (like raffle tickets or flyers).
+            Dragging exerts tactile strain along the perforated boundary. Crossing the detachment threshold snaps/tears the ticket into active state.
+          </div>
+        </div>
+        <span class="verb-badge">Verb: Tear / Perforate</span>
+      </div>
+
+      <div class="interactive-surface">
+        <svg class="nav-svg-layer" viewBox="0 0 660 180" fill="none">
+          <!-- Backing Board -->
+          <rect x="30" y="35" width="600" height="110" rx="6" fill="#141418" stroke="#252530" stroke-width="2" />
+
+          <!-- Ticket 1: WORK -->
+          <g id="c3_ticket1" class="draggable-peel-flap" transform="translate(0, 0)">
+            <rect x="50" y="45" width="160" height="90" rx="4" fill="#eaeaea" stroke="#000" stroke-width="2" />
+            <text x="130" y="85" text-anchor="middle" font-size="14" font-weight="700" fill="#000">1. WORK</text>
+            <text x="130" y="105" text-anchor="middle" font-size="10" fill="#777">[INDEX 01]</text>
+            <!-- Perforation line -->
+            <line x1="210" y1="45" x2="210" y2="135" stroke="#ff3b30" stroke-width="2.5" stroke-dasharray="5 5" />
+          </g>
+
+          <!-- Ticket 2: ARCHIVE -->
+          <g id="c3_ticket2" class="draggable-peel-flap" transform="translate(0, 0)">
+            <rect x="230" y="45" width="160" height="90" rx="4" fill="#eaeaea" stroke="#000" stroke-width="2" />
+            <text x="310" y="85" text-anchor="middle" font-size="14" font-weight="700" fill="#000">2. ARCHIVE</text>
+            <text x="310" y="105" text-anchor="middle" font-size="10" fill="#777">[INDEX 02]</text>
+            <line x1="390" y1="45" x2="390" y2="135" stroke="#ff3b30" stroke-width="2.5" stroke-dasharray="5 5" />
+          </g>
+
+          <!-- Ticket 3: CONTACT -->
+          <g id="c3_ticket3" class="draggable-peel-flap" transform="translate(0, 0)">
+            <rect x="410" y="45" width="160" height="90" rx="4" fill="#eaeaea" stroke="#000" stroke-width="2" />
+            <text x="490" y="85" text-anchor="middle" font-size="14" font-weight="700" fill="#000">3. CONTACT</text>
+            <text x="490" y="105" text-anchor="middle" font-size="10" fill="#777">[INDEX 03]</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="status-readout">
+        <span>Tear Status: <span id="c3_status" class="status-highlight">Attached (Drag stub downwards past 60px to tear)</span></span>
+        <span>Elastic Tension: <span id="c3_tension">0%</span></span>
+      </div>
+    </div>
+
+
+    <!-- ====================================================
+         CONCEPT 4: HINGED MATCHBOOK FOLD (Straight Horizontal Crease)
+         ==================================================== -->
+    <div id="concept4" class="concept-card">
+      <div class="card-header-bar">
+        <div>
+          <div class="concept-name">Concept 4: Hinged Matchbook Fold (Horizontal Axis Crease)</div>
+          <div class="concept-desc">
+            A straight horizontal fold ($Y = 0$) along the top ribbon.
+            At rest, it covers the nav bar like a closed matchbook cover.
+            Pulling down flips it open along the top crease, revealing the signature green peel on the back and exposing the entire route menu.
+          </div>
+        </div>
+        <span class="verb-badge">Verb: Straight Hinge</span>
+      </div>
+
+      <div class="interactive-surface">
+        <svg class="nav-svg-layer" viewBox="0 0 600 220" fill="none">
+          <!-- Backing Board -->
+          <rect x="100" y="20" width="400" height="160" rx="8" fill="#141418" stroke="#2a2a34" stroke-width="2" />
+          <!-- Revealed Nav Menu underneath -->
+          <text x="300" y="70" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">NAVIGATION MENU</text>
+          <line x1="160" y1="85" x2="440" y2="85" stroke="#333" stroke-width="1" />
+          <text x="300" y="110" text-anchor="middle" font-size="12" fill="#aaa">1. WORK  •  2. ARCHIVE  •  3. CONTACT</text>
+          <text x="300" y="140" text-anchor="middle" font-size="11" fill="var(--accent-light)">[Tap destination to dispatch]</text>
+
+          <!-- Hinged Matchbook Cover Flap -->
+          <g id="c4_matchbook" class="draggable-peel-flap" style="transform-origin: 300px 20px;">
+            <rect x="120" y="20" width="360" height="150" rx="6" fill="#eaeaea" stroke="#000" stroke-width="2.5" />
+            <!-- Staple / Tape at top hinge -->
+            <rect x="250" y="22" width="100" height="8" rx="2" fill="#888" stroke="#444" stroke-width="1" />
+            <text x="300" y="95" text-anchor="middle" font-size="14" font-weight="700" fill="#000">PORTFOLIO INDEX</text>
+            <text x="300" y="125" text-anchor="middle" font-size="11" fill="#666">▼ PULL DOWN TO OPEN</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="status-readout">
+        <span>Hinge State: <span id="c4_status" class="status-highlight">Closed (Drag down or click to flip)</span></span>
+        <span>Hinge Axis: Horizontal Crease (Y = 20)</span>
+      </div>
+    </div>
+
+
+    <!-- ====================================================
+         CONCEPT 5: ADHESIVE TAPE PEEL
+         ==================================================== -->
+    <div id="concept5" class="concept-card">
+      <div class="card-header-bar">
+        <div>
+          <div class="concept-name">Concept 5: Adhesive Tape / Label Peel Strip</div>
+          <div class="concept-desc">
+            A piece of textured masking tape labeled "NAV" pinned over the header.
+            Dragging peels the tape back with progressive curvature, revealing high-contrast route buttons underneath.
+          </div>
+        </div>
+        <span class="verb-badge">Verb: Adhesive Peel</span>
+      </div>
+
+      <div class="interactive-surface">
+        <svg class="nav-svg-layer" viewBox="0 0 600 180" fill="none">
+          <!-- Backing board with routes -->
+          <rect x="60" y="45" width="480" height="90" rx="6" fill="#181820" stroke="#30303c" stroke-width="2" />
+          <text x="140" y="98" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">WORK</text>
+          <text x="300" y="98" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">ARCHIVE</text>
+          <text x="460" y="98" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">CONTACT</text>
+
+          <!-- Adhesive Tape Strip -->
+          <g id="c5_tapeGroup" class="draggable-peel-flap">
+            <!-- Underside Adhesive Surface -->
+            <polygon id="c5_tapeUnderside" points="80,55 80,125 80,125" fill="#1A885C" opacity="0" />
+            <!-- Main Tape Strip -->
+            <path id="c5_tapePath" d="M80,55 L520,55 L520,125 L80,125 Z" fill="#e8d8a0" stroke="#b0a070" stroke-width="1.5" />
+            <text id="c5_tapeLabel" x="300" y="95" text-anchor="middle" font-size="13" font-weight="700" fill="#554422">INDEX // MASKING TAPE (DRAG TO PEEL)</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="status-readout">
+        <span>Adhesive State: <span id="c5_status" class="status-highlight">100% Adhered</span></span>
+        <span>Peel Force: Drag left edge rightwards</span>
+      </div>
+    </div>
+
+
+    <!-- ====================================================
+         MOBILE VIEWPORT DEMONSTRATION FRAME
+         (Demonstrates bottom-left corner placement)
+         ==================================================== -->
+    <div class="mobile-frame-container">
+      <div class="phone-mock">
+        <div class="phone-speaker"></div>
+        <div class="phone-screen">
+          <div class="phone-content-dummy">
+            <div style="font-size: 1rem; color: #eee; font-weight: 700; margin-bottom: 8px;">Portfolio Page</div>
+            <p>On mobile viewports, having a wide top navigation creates thumb strain (unreachable top corners).</p>
+            <br>
+            <p>Instead, the nav docks at the <strong>BOTTOM-LEFT CORNER</strong> right in your natural thumb reach zone.</p>
+          </div>
+
+          <!-- Bottom Left Corner Docked Nav -->
+          <div class="phone-bottom-dock">
+            <div class="thumb-zone-label">Bottom-Left Thumb Reach Zone</div>
+            <svg viewBox="0 0 300 90" fill="none" style="width: 100%; overflow: visible;">
+              <!-- Mini Horizontal Ribbon -->
+              <path d="M10 20H280L282 30L290 45L278 60L290 70H10V20Z" fill="#EAEAEA" />
+              <!-- Flap over WORK -->
+              <g id="c_mobileFlap" class="draggable-peel-flap">
+                <rect x="12" y="22" width="75" height="46" rx="2" fill="#ffffff" stroke="#000000" stroke-width="2" />
+                <text x="49" y="49" text-anchor="middle" font-size="10" font-weight="700" fill="#000000">WORK</text>
+              </g>
+              <!-- Next Tabs -->
+              <text x="135" y="49" text-anchor="middle" font-size="10" font-weight="700" fill="#888">ARCHIVE</text>
+              <text x="225" y="49" text-anchor="middle" font-size="10" font-weight="700" fill="#888">CONTACT</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ====================================================
+       INTERACTIVE ENGINES & GEOMETRY GENERATORS
+       ==================================================== -->
+  <script>
+    // ----------------------------------------------------
+    // INLINED PROCEDURAL WOBBLY POLYGON ENGINE (From js/geometry.js)
+    // ----------------------------------------------------
+    function generateWobblyPolygon(corners, freq, amp, segmentLen, seedOffset = 0, forceStraight = false) {
+      if (forceStraight || amp <= 0.01) {
+        let d = "";
+        for (let i = 0; i < corners.length; i++) {
+          d += (i === 0 ? `M ${corners[i].x.toFixed(1)},${corners[i].y.toFixed(1)} ` : `L ${corners[i].x.toFixed(1)},${corners[i].y.toFixed(1)} `);
+        }
+        d += "Z";
+        return d;
+      }
+
+      let d = "";
+      let noiseOffset = seedOffset;
+
+      for (let i = 0; i < corners.length; i++) {
+        const pStart = corners[i];
+        const pEnd = corners[(i + 1) % corners.length];
+        const dx = pEnd.x - pStart.x;
+        const dy = pEnd.y - pStart.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 0.1) continue;
+
+        const steps = Math.max(1, Math.floor(dist / segmentLen));
+        const nx = -dy / dist;
+        const ny = dx / dist;
+
+        for (let j = 0; j < steps; j++) {
+          const t = j / steps;
+          let bx = pStart.x + dx * t;
+          let by = pStart.y + dy * t;
+
+          const ampMod = 0.5 + 0.5 * Math.sin(noiseOffset * freq * 0.3);
+          const noise = (Math.sin(noiseOffset * freq) + Math.sin(noiseOffset * freq * 2.3 + 1.5)) * 0.5;
+
+          bx += nx * noise * amp * ampMod;
+          by += ny * noise * amp * ampMod;
+
+          if (i === 0 && j === 0) d += `M ${bx.toFixed(1)},${by.toFixed(1)} `;
+          else d += `L ${bx.toFixed(1)},${by.toFixed(1)} `;
+
+          noiseOffset += segmentLen;
+        }
+      }
+      d += "Z";
+      return d;
+    }
+
+
+    // ----------------------------------------------------
+    // TAB CONTROLLER & VIEWPORT SWITCHER
+    // ----------------------------------------------------
+    const conceptBtns = document.querySelectorAll('.concept-btn');
+    const conceptCards = document.querySelectorAll('.concept-card');
+    const mainStage = document.getElementById('mainStage');
+
+    conceptBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        conceptBtns.forEach(b => b.classList.remove('active'));
+        conceptCards.forEach(c => c.classList.remove('active'));
+
+        btn.classList.add('active');
+        const targetId = btn.getAttribute('data-concept');
+        const targetCard = document.getElementById(targetId);
+        if (targetCard) targetCard.classList.add('active');
+      });
+    });
+
+    const toggleDesktop = document.getElementById('toggleDesktop');
+    const toggleMobile = document.getElementById('toggleMobile');
+
+    toggleDesktop.addEventListener('click', () => {
+      toggleDesktop.classList.add('active');
+      toggleMobile.classList.remove('active');
+      mainStage.classList.remove('is-mobile-view');
+    });
+
+    toggleMobile.addEventListener('click', () => {
+      toggleMobile.classList.add('active');
+      toggleDesktop.classList.remove('active');
+      mainStage.classList.add('is-mobile-view');
+    });
+
+
+    // ====================================================
+    // CONCEPT 1: HORIZONTAL CARD-FOLD PEEL ENGINE
+    // ====================================================
+    (function initConcept1() {
+      const flapGroup = document.getElementById('c1_flapGroup');
+      const flapBody = document.getElementById('c1_flapBody');
+      const flapShadow = document.getElementById('c1_flapShadow');
+      const clipShape = document.getElementById('c1_clipShape');
+      const greenPeelGroup = document.getElementById('c1_greenPeelGroup');
+      const peelPath = document.getElementById('c1_peelPath');
+      const peelOuterPath = document.getElementById('c1_peelOuterPath');
+      const statusEl = document.getElementById('c1_status');
+      const dragInfoEl = document.getElementById('c1_dragInfo');
+      const coordsEl = document.getElementById('c1_coords');
+
+      // Sliders
+      const toggleWobble = document.getElementById('c1_toggleWobble');
+      const wobbleAmpInput = document.getElementById('c1_wobbleAmp');
+      const dragSkewInput = document.getElementById('c1_dragSkew');
+      const snapEaseSelect = document.getElementById('c1_snapEase');
+
+      // 3 Destination Slots (Based on SVG pixel locations)
+      const slots = [
+        { name: 'WORK', x: 0 },
+        { name: 'ARCHIVE', x: 216 },
+        { name: 'CONTACT', x: 450 }
+      ];
+
+      // Exact Base Flap Coordinates from testtopnav_selectwork.svg (resting closed state)
+      const basePoints = [
+        { x: 44.07, y: 54.45 },   // P1: Top-Left
+        { x: 164.54, y: 54.46 },  // P2: Top-Right
+        { x: 165.04, y: 104.96 }, // P3: Mid-Right
+        { x: 165.50, y: 151.95 }, // P4: Bottom-Right
+        { x: 44.07, y: 151.95 },  // P5: Bottom-Left
+        { x: 44.07, y: 112.95 },  // P6: Notch bottom
+        { x: 56.57, y: 104.95 },  // P7: Notch inward apex
+        { x: 44.07, y: 96.45 }    // P8: Notch top
+      ];
+
+      // Pulled / Tension Deformation Deltas from testtopnav.svg
+      const tensionOffsets = [
+        { dx: 0, dy: 41.77 },      // P1 pulls down
+        { dx: -24.33, dy: -32.16 }, // P2 pulls up-left
+        { dx: -5.83, dy: -35.87 }, // P3
+        { dx: 11.39, dy: -39.31 }, // P4
+        { dx: 0, dy: 41.77 },      // P5
+        { dx: 0, dy: 41.77 },
+        { dx: 0, dy: 41.77 },
+        { dx: 0, dy: 41.77 }
+      ];
+
+      let currentX = 0;
+      let dragFactor = 0; // 0 = flat resting, 1 = maximum tension
+      let isDragging = false;
+      let startPointerX = 0;
+      let startFlapX = 0;
+
+      function renderFlap() {
+        const isWobble = toggleWobble.checked;
+        const amp = parseFloat(wobbleAmpInput.value);
+
+        // Compute current 8 vertices interpolated with drag tension
+        const currentPoints = basePoints.map((pt, i) => {
+          const tOffset = tensionOffsets[i];
+          return {
+            x: pt.x + currentX + (tOffset.dx * dragFactor),
+            y: pt.y + (tOffset.dy * dragFactor)
+          };
+        });
+
+        // 1. Render White Flap
+        const flapD = generateWobblyPolygon(currentPoints, 0.15, amp, 5, 0, !isWobble);
+        flapBody.setAttribute('d', flapD);
+        flapShadow.setAttribute('d', flapD);
+        clipShape.setAttribute('d', flapD);
+
+        // 2. Render Underside Green Peel along the moving fold crease
+        if (Math.abs(dragFactor) > 0.05) {
+          greenPeelGroup.setAttribute('opacity', Math.min(1, Math.abs(dragFactor) * 2));
+          // Green peel polygon connects the resting fold anchor to the peeled back flap
+          const peelPoints = [
+            { x: basePoints[0].x + currentX, y: basePoints[0].y },
+            { x: currentPoints[0].x, y: currentPoints[0].y },
+            { x: currentPoints[4].x, y: currentPoints[4].y },
+            { x: basePoints[4].x + currentX, y: basePoints[4].y }
+          ];
+          const peelD = generateWobblyPolygon(peelPoints, 0.15, amp * 0.8, 5, 50, !isWobble);
+          peelPath.setAttribute('d', peelD);
+          peelOuterPath.setAttribute('d', peelD);
+        } else {
+          greenPeelGroup.setAttribute('opacity', '0');
+        }
+
+        // 3. Update Coordinates Inspector Readout
+        coordsEl.textContent = `P1: (${currentPoints[0].x.toFixed(1)}, ${currentPoints[0].y.toFixed(1)}) | P2: (${currentPoints[1].x.toFixed(1)}, ${currentPoints[1].y.toFixed(1)}) | P4: (${currentPoints[3].x.toFixed(1)}, ${currentPoints[3].y.toFixed(1)}) | Tension: ${Math.round(dragFactor * 100)}%`;
+      }
+
+      function snapToSlot(index) {
+        const targetSlot = slots[index];
+        statusEl.textContent = targetSlot.name;
+        dragInfoEl.textContent = `Snapped to ${targetSlot.name}`;
+
+        gsap.to({ x: currentX, drag: dragFactor }, {
+          x: targetSlot.x,
+          drag: 0,
+          duration: 0.45,
+          ease: snapEaseSelect.value,
+          onUpdate: function() {
+            currentX = this.targets()[0].x;
+            dragFactor = this.targets()[0].drag;
+            renderFlap();
+          }
+        });
+      }
+
+      flapGroup.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        document.body.classList.add('is-dragging');
+        startPointerX = e.clientX;
+        startFlapX = currentX;
+
+        function onMove(ev) {
+          if (!isDragging) return;
+          const deltaX = (ev.clientX - startPointerX) * 1.1;
+          currentX = Math.max(-10, Math.min(480, startFlapX + deltaX));
+
+          // Calculate tension from drag velocity/displacement
+          const skewFactor = parseFloat(dragSkewInput.value);
+          dragFactor = Math.max(-0.6, Math.min(1.0, (deltaX * 0.008) * skewFactor));
+
+          // Identify nearest tab
+          let nearest = 0, minDist = 9999;
+          slots.forEach((s, idx) => {
+            const d = Math.abs(currentX - s.x);
+            if (d < minDist) { minDist = d; nearest = idx; }
+          });
+          dragInfoEl.textContent = `Dragging towards ${slots[nearest].name}...`;
+
+          renderFlap();
+        }
+
+        function onUp() {
+          isDragging = false;
+          document.body.classList.remove('is-dragging');
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+
+          let nearest = 0, minDist = 9999;
+          slots.forEach((s, idx) => {
+            const d = Math.abs(currentX - s.x);
+            if (d < minDist) { minDist = d; nearest = idx; }
+          });
+          snapToSlot(nearest);
+        }
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+
+      // Slider listeners
+      [toggleWobble, wobbleAmpInput, dragSkewInput].forEach(inp => {
+        inp.addEventListener('input', renderFlap);
+      });
+
+      renderFlap();
+    })();
+
+
+    // ====================================================
+    // CONCEPT 2: CARD-FOLD REVEALING ACTION DIAMONDS
+    // ====================================================
+    (function initConcept2() {
+      const peelGroup = document.getElementById('c2_peelGroup');
+      const flap = document.getElementById('c2_flap');
+      const flapLabel = document.getElementById('c2_flapLabel');
+      const greenPeel = document.getElementById('c2_greenPeel');
+      const eyePupil = document.getElementById('c2_eyePupil');
+      const statusEl = document.getElementById('c2_status');
+
+      let isOpen = false;
+      let startX = 0;
+      let isDragging = false;
+      let peelProgress = 0; // 0 = closed, 1 = fully open
+
+      function updatePeel(progress) {
+        peelProgress = progress;
+        // As you peel, fold line moves right
+        const w = 180;
+        const foldX = w * (1 - progress);
+
+        // Flap path folds back
+        flap.setAttribute('d', `M${w - foldX},0 L${w},0 L${w},90 L${w - foldX},90 Z`);
+        flapLabel.setAttribute('opacity', 1 - progress);
+
+        // Underside green peel
+        if (progress > 0.02) {
+          greenPeel.setAttribute('points', `${w - foldX},0 ${w - foldX + (progress * 25)},45 ${w - foldX},90`);
+          greenPeel.style.opacity = '1';
+        } else {
+          greenPeel.style.opacity = '0';
+        }
+
+        // Figma eye pupil tracking
+        const pupilOffset = (progress - 0.5) * 4;
+        eyePupil.setAttribute('cx', pupilOffset.toFixed(1));
+
+        statusEl.textContent = progress > 0.5 ? 'OPEN (Buttons clickable)' : 'Closed';
+      }
+
+      peelGroup.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        const initialP = peelProgress;
+
+        function onMove(ev) {
+          if (!isDragging) return;
+          const dx = ev.clientX - startX;
+          const p = Math.max(0, Math.min(1, initialP + dx / 150));
+          updatePeel(p);
+        }
+
+        function onUp() {
+          isDragging = false;
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+
+          const targetP = peelProgress > 0.35 ? 1 : 0;
+          gsap.to({ p: peelProgress }, {
+            p: targetP,
+            duration: 0.35,
+            ease: "back.out(1.2)",
+            onUpdate: function() {
+              updatePeel(this.targets()[0].p);
+            }
+          });
+        }
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+    })();
+
+
+    // ====================================================
+    // CONCEPT 3: PERFORATED TICKET TEAR-OFF ENGINE
+    // ====================================================
+    (function initConcept3() {
+      const tickets = [
+        { el: document.getElementById('c3_ticket1'), name: '1. WORK' },
+        { el: document.getElementById('c3_ticket2'), name: '2. ARCHIVE' },
+        { el: document.getElementById('c3_ticket3'), name: '3. CONTACT' }
+      ];
+      const statusEl = document.getElementById('c3_status');
+      const tensionEl = document.getElementById('c3_tension');
+
+      tickets.forEach((t, idx) => {
+        let isTearing = false;
+        let startY = 0;
+
+        t.el.addEventListener('pointerdown', (e) => {
+          isTearing = true;
+          startY = e.clientY;
+
+          function onMove(ev) {
+            if (!isTearing) return;
+            const dy = Math.max(0, ev.clientY - startY);
+            const wobble = Math.sin(dy * 0.25) * 3;
+            gsap.set(t.el, { y: dy, rotation: wobble });
+
+            const tensionPct = Math.min(100, Math.round((dy / 60) * 100));
+            tensionEl.textContent = `${tensionPct}%`;
+
+            if (dy > 60) {
+              statusEl.textContent = `TORN OFF! Navigating to ${t.name}...`;
+              statusEl.style.color = '#ff3b30';
+            } else {
+              statusEl.textContent = `Straining perforation (${tensionPct}%)...`;
+              statusEl.style.color = '#4ade80';
+            }
+          }
+
+          function onUp(ev) {
+            isTearing = false;
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+
+            const dy = Math.max(0, ev.clientY - startY);
+            if (dy > 60) {
+              gsap.to(t.el, { y: 220, opacity: 0, duration: 0.35, ease: "power2.in" });
+              setTimeout(() => {
+                gsap.to(t.el, { y: 0, rotation: 0, opacity: 1, duration: 0.4, ease: "back.out" });
+                statusEl.textContent = 'Attached (Drag stub downwards past 60px to tear)';
+                statusEl.style.color = '';
+                tensionEl.textContent = '0%';
+              }, 1200);
+            } else {
+              gsap.to(t.el, { y: 0, rotation: 0, duration: 0.3, ease: "elastic.out(1, 0.4)" });
+              statusEl.textContent = 'Attached (Drag stub downwards past 60px to tear)';
+              tensionEl.textContent = '0%';
+            }
+          }
+
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp);
+        });
+      });
+    })();
+
+
+    // ====================================================
+    // CONCEPT 4: HINGED MATCHBOOK FLAP ENGINE
+    // ====================================================
+    (function initConcept4() {
+      const matchbook = document.getElementById('c4_matchbook');
+      const statusEl = document.getElementById('c4_status');
+      let isOpen = false;
+
+      matchbook.addEventListener('click', () => {
+        isOpen = !isOpen;
+        if (isOpen) {
+          gsap.to(matchbook, {
+            scaleY: 1.15,
+            y: 30,
+            duration: 0.45,
+            ease: "back.out(1.8)"
+          });
+          statusEl.textContent = "OPEN (Full Menu Array Exposed)";
+        } else {
+          gsap.to(matchbook, {
+            scaleY: 1,
+            y: 0,
+            duration: 0.35,
+            ease: "power2.out"
+          });
+          statusEl.textContent = "Closed (Hinged at top)";
+        }
+      });
+    })();
+
+
+    // ====================================================
+    // CONCEPT 5: ADHESIVE TAPE PEEL ENGINE
+    // ====================================================
+    (function initConcept5() {
+      const tapeGroup = document.getElementById('c5_tapeGroup');
+      const tapePath = document.getElementById('c5_tapePath');
+      const tapeUnderside = document.getElementById('c5_tapeUnderside');
+      const tapeLabel = document.getElementById('c5_tapeLabel');
+      const statusEl = document.getElementById('c5_status');
+
+      let peelX = 80;
+      let isDragging = false;
+      let startX = 0;
+
+      function renderTape(xVal) {
+        peelX = xVal;
+        const rightEdge = 520;
+        tapePath.setAttribute('d', `M${peelX},55 L${rightEdge},55 L${rightEdge},125 L${peelX},125 Z`);
+
+        const peeledDist = peelX - 80;
+        if (peeledDist > 5) {
+          tapeUnderside.setAttribute('opacity', '1');
+          tapeUnderside.setAttribute('points', `${peelX},55 ${peelX - 30},90 ${peelX},125`);
+          statusEl.textContent = `Peeled: ${Math.round((peeledDist / 440) * 100)}%`;
+        } else {
+          tapeUnderside.setAttribute('opacity', '0');
+          statusEl.textContent = `100% Adhered`;
+        }
+      }
+
+      tapeGroup.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        const initialPeel = peelX;
+
+        function onMove(ev) {
+          if (!isDragging) return;
+          const dx = ev.clientX - startX;
+          const targetX = Math.max(80, Math.min(500, initialPeel + dx));
+          renderTape(targetX);
+        }
+
+        function onUp() {
+          isDragging = false;
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+
+          const snapTarget = peelX > 250 ? 500 : 80;
+          gsap.to({ x: peelX }, {
+            x: snapTarget,
+            duration: 0.4,
+            ease: "back.out(1.2)",
+            onUpdate: function() {
+              renderTape(this.targets()[0].x);
+            }
+          });
+        }
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+    })();
+
+
+    // ====================================================
+    // MOBILE THUMB REACH PEEL DEMONSTRATION
+    // ====================================================
+    (function initMobileDemo() {
+      const mobileFlap = document.getElementById('c_mobileFlap');
+      let currentX = 0;
+      let isDragging = false;
+      let startX = 0;
+
+      mobileFlap.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        const initX = currentX;
+
+        function onMove(ev) {
+          if (!isDragging) return;
+          const dx = ev.clientX - startX;
+          currentX = Math.max(0, Math.min(180, initX + dx));
+          mobileFlap.setAttribute('transform', `translate(${currentX}, 0)`);
+        }
+
+        function onUp() {
+          isDragging = false;
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+
+          const snapX = currentX > 90 ? 180 : 0;
+          gsap.to({ x: currentX }, {
+            x: snapX,
+            duration: 0.35,
+            ease: "back.out(1.4)",
+            onUpdate: function() {
+              currentX = this.targets()[0].x;
+              mobileFlap.setAttribute('transform', `translate(${currentX}, 0)`);
+            }
+          });
+        }
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+    })();
+  </script>
+</body>
+</html>

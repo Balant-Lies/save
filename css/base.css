@@ -1,0 +1,57 @@
+/* ====================================================
+   LOCAL FONTS
+   Departure Mono (pixel/technical monospace font)
+   ==================================================== */
+@font-face {
+  font-family: 'Departure Mono';
+  src: url('../fonts/DepartureMono-Regular.woff2') format('woff2'),
+       url('../fonts/DepartureMono-Regular.woff') format('woff'),
+       url('../DepartureMono-1.500/DepartureMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --grid-padding-top: 180px;
+  --grid-padding-bottom: 64px;
+  --grid-padding-x: 16px;
+  --grid-gap: 32px;
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+body {
+  font-family: 'Departure Mono', monospace;
+  background-color: #ffffff;
+  min-height: 100vh;
+}
+
+/* Main card container grid (Config-driven padding, centered on mobile & desktop) */
+.grid {
+  display: grid;
+  gap: var(--grid-gap, 32px);
+  padding: var(--grid-padding-top, 180px) var(--grid-padding-x, 16px) var(--grid-padding-bottom, 64px) var(--grid-padding-x, 16px);
+  justify-content: center;
+  justify-items: center;
+  grid-template-columns: minmax(0, 300px);
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* 2-column layout on tablet/desktop screens */
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(2, 300px);
+    padding: var(--grid-padding-top, 180px) 2rem var(--grid-padding-bottom, 64px) 2rem;
+  }
+}

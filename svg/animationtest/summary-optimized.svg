@@ -1,0 +1,102 @@
+<svg width="121" height="103" viewBox="0 0 121 103" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    svg { overflow: visible; }
+
+    /* Frame 478: Pure rotation around Frame_478's own (0, 0) origin */
+    @keyframes kf_Frame_478 {
+      0%, 2.44% {
+        animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1);
+        transform: translate(15.296px, 19.918px) rotate(18.91deg);
+      }
+      12.54% {
+        animation-timing-function: cubic-bezier(0.11, 0.54, 0.36, 0.84);
+        transform: translate(15.296px, 19.918px) rotate(12.09deg);
+      }
+      36.13%, 100% {
+        transform: translate(15.296px, 19.918px) rotate(-71.50deg);
+      }
+    }
+    #Frame_478 {
+      transform-origin: 0 0;
+      animation: kf_Frame_478 2s linear infinite;
+    }
+
+    /* Pupil Translation Animation */
+    @keyframes kf_pupil {
+      0%, 12.54% {
+        animation-timing-function: cubic-bezier(0, 0, 0, 1.052);
+        transform: translate(-4.565px, -1.566px);
+      }
+      37.74%, 100% {
+        transform: translate(12.04px, 5.743px);
+      }
+    }
+    #Ellipse_91 {
+      animation: kf_pupil 2s linear infinite;
+    }
+  </style>
+
+  <g id="Frame_476">
+    <!-- Background Card -->
+    <rect width="59.6943" height="57.348" id="Frame_476_bg_0" fill="white" />
+
+    <!-- Animated Triangle Flap -->
+    <g id="Frame_478">
+      <path id="Polygon_37" transform="translate(20.9037 -81.8047) rotate(90.2305)" d="M16.4135 0L32.9433 99.3644L0 97.5882L16.4135 0Z" fill="black">
+        <animate attributeName="d"
+          values="M32.9433 99.3644C32.9433 99.3644 0 97.5882 0 97.5882C0 97.5882 16.4135 0 16.4135 0C16.4135 0 32.9433 99.3644 32.9433 99.3644Z;
+                  M32.9433 99.3644C32.9433 99.3644 0 97.5882 0 97.5882C0 97.5882 16.4135 0 16.4135 0C16.4135 0 32.9433 99.3644 32.9433 99.3644Z;
+                  M125.5545 99.3644C125.5545 99.3644 -91.9595 97.5882 -91.9595 97.5882C-91.9595 97.5882 16.4135 0 16.4135 0C16.4135 0 125.5545 99.3644 125.5545 99.3644Z;
+                  M125.5545 99.3644C125.5545 99.3644 -91.9595 97.5882 -91.9595 97.5882C-91.9595 97.5882 16.4135 0 16.4135 0C16.4135 0 125.5545 99.3644 125.5545 99.3644Z"
+          keyTimes="0; 0.125391; 0.558218; 1"
+          keySplines="0 0 1 1; 0.7 0 0.4 1; 0 0 1 1"
+          dur="2s" calcMode="spline" repeatCount="indefinite" />
+      </path>
+    </g>
+
+    <!-- Paragraph Icon Lines -->
+    <g id="para" transform="translate(0 15.3082)">
+      <path id="Union" d="M15.1094 2.37695L13.96 5.74121L10.2246 4.46484L4.40137 20.2266L7.97852 21.5488L6.89941 24.4717L0 21.9229L0.0117188 21.8887L0 21.8848L8.05469 0.0859375L8.1123 0.106445L8.14941 0L15.1094 2.37695Z" fill="white" />
+      <path id="Union_2" transform="translate(45 16)" d="M14.667 2.54297L14.6279 2.64844L14.6865 2.66895L8.2666 21.5186L8.27734 21.5225L7.6377 23.3652L7.19531 24.667L7.1875 24.6641L7.11328 24.8809L0 22.416L1.16406 19.0566L4.9082 20.3545L10.2393 4.69922L6.53711 3.33496L7.7666 0L14.667 2.54297Z" fill="white" />
+      <rect id="Rectangle_34624378" transform="translate(16.7426 8.99997) rotate(20.3956)" width="33" height="5" fill="white" />
+      <rect id="Rectangle_34624379" transform="translate(13.7753 17.6404) rotate(20.3956)" width="10.8465" height="5" fill="white" />
+      <rect id="Rectangle_34624380" transform="translate(26.7426 23) rotate(20.3956)" width="19.0404" height="5" fill="white" />
+    </g>
+
+    <!-- Animated Eye Group -->
+    <g id="eye" transform="translate(24.256 0) rotate(18.6413)">
+      <!-- Animated Eyelid Outline -->
+      <path id="Vector_68" transform="translate(4.0924 0)" d="M12.575 7.08815C17.1996 7.69413 27.9729 3.74097 27.9729 3.74097C27.9729 3.74097 18.3119 -0.228532 12.575 0.0103664C6.83798 0.249265 0 3.74097 0 3.74097C0 3.74097 7.95033 6.48217 12.575 7.08815Z" fill="black">
+        <animate attributeName="d"
+          values="M12.575 7.08815C17.1996 7.69413 27.9729 3.74097 27.9729 3.74097C27.9729 3.74097 18.3119 -0.228532 12.575 0.0103664C6.83798 0.249265 0 3.74097 0 3.74097C0 3.74097 7.95033 6.48218 12.575 7.08815Z;
+                  M12.575 7.08815C17.1996 7.69413 27.9729 3.74097 27.9729 3.74097C27.9729 3.74097 18.3119 -0.228532 12.575 0.0103664C6.83798 0.249265 0 3.74097 0 3.74097C0 3.74097 7.95033 6.48218 12.575 7.08815Z;
+                  M12.575 16.7479C17.1996 18.1797 27.9729 8.83916 27.9729 8.83916C27.9729 8.83916 18.3119 -0.539976 12.575 0.0244937C6.83798 0.588963 0 8.83916 0 8.83916C0 8.83916 7.95033 15.3161 12.575 16.7479Z;
+                  M12.575 16.7479C17.1996 18.1797 27.9729 8.83916 27.9729 8.83916C27.9729 8.83916 18.3119 -0.539976 12.575 0.0244937C6.83798 0.588963 0 8.83916 0 8.83916C0 8.83916 7.95033 15.3161 12.575 16.7479Z"
+          keyTimes="0; 0.0350785; 0.349872; 1"
+          keySplines="0 0 1 1; 0.45 1 0.8 1; 0 0 1 1"
+          dur="2s" calcMode="spline" repeatCount="indefinite" />
+      </path>
+
+      <!-- Eye Clip Mask (Locks to exact same morph as Eyelid) -->
+      <mask id="mask0_eye" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="121" height="103">
+        <path id="Vector_69" transform="translate(4.0924 0)" d="M12.575 7.08815C17.1996 7.69413 27.9729 3.74097 27.9729 3.74097C27.9729 3.74097 18.3119 -0.228532 12.575 0.0103664C6.83798 0.249265 0 3.74097 0 3.74097C0 3.74097 7.95033 6.48217 12.575 7.08815Z" fill="black" stroke="black" stroke-width="0.881855">
+          <animate attributeName="d"
+            values="M12.575 7.08815C17.1996 7.69413 27.9729 3.74097 27.9729 3.74097C27.9729 3.74097 18.3119 -0.228532 12.575 0.0103664C6.83798 0.249265 0 3.74097 0 3.74097C0 3.74097 7.95033 6.48218 12.575 7.08815Z;
+                    M12.575 7.08815C17.1996 7.69413 27.9729 3.74097 27.9729 3.74097C27.9729 3.74097 18.3119 -0.228532 12.575 0.0103664C6.83798 0.249265 0 3.74097 0 3.74097C0 3.74097 7.95033 6.48218 12.575 7.08815Z;
+                    M12.575 16.7479C17.1996 18.1797 27.9729 8.83916 27.9729 8.83916C27.9729 8.83916 18.3119 -0.539976 12.575 0.0244937C6.83798 0.588963 0 8.83916 0 8.83916C0 8.83916 7.95033 15.3161 12.575 16.7479Z;
+                    M12.575 16.7479C17.1996 18.1797 27.9729 8.83916 27.9729 8.83916C27.9729 8.83916 18.3119 -0.539976 12.575 0.0244937C6.83798 0.588963 0 8.83916 0 8.83916C0 8.83916 7.95033 15.3161 12.575 16.7479Z"
+            keyTimes="0; 0.0350785; 0.349872; 1"
+            keySplines="0 0 1 1; 0.45 1 0.8 1; 0 0 1 1"
+            dur="2s" calcMode="spline" repeatCount="indefinite" />
+        </path>
+      </mask>
+
+      <!-- Masked Pupil (Locked coordinates, zero jump) -->
+      <g mask="url(#mask0_eye)">
+        <g id="Group_93" transform="translate(0 3.4914)">
+          <circle id="Ellipse_91" cx="6.4752" cy="6.4752" r="5.15242" stroke="white" stroke-width="2.64557" />
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

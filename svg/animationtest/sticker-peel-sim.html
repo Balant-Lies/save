@@ -1,0 +1,2209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Navigation Sticker & Adaptive Pill Lab</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <style>
+    :root {
+      --bg: #09090e;
+      --card-bg: #12121a;
+      --border: #232332;
+      --accent: #1A885C; /* Signature card peel green */
+      --accent-light: #2dd4bf;
+      --text: #f0f0f8;
+      --text-muted: #84849a;
+
+      /* Specular & Gloss Dynamics */
+      --diag-pos: 50%;
+      --sheen-opacity: 0.45;
+      --sheen-blend: overlay;
+      --gloss-angle: -140deg;
+      --gloss-tint: 255, 255, 255;
+
+      /* Physical Positioning */
+      --sticker-shadow-y: 16px;
+      --sticker-shadow-blur: 28px;
+      --sticker-shadow-opacity: 0.72;
+
+      /* Corner Peel Affordance Offset & Dynamics */
+      --peel-x: 71px;
+      --peel-y: 67px;
+      --peel-scale: 1.3;
+      --peel-rotate: 0deg;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Departure Mono', monospace, system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      gap: 20px;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+    }
+
+    h1 {
+      font-size: 1.15rem;
+      color: var(--accent-light);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: 0.03em;
+    }
+
+    .badge {
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: #1a1a24;
+      border: 1px solid #303044;
+      color: #bbb;
+    }
+
+    .badge-green {
+      background: rgba(26, 136, 92, 0.25);
+      border-color: #1A885C;
+      color: #4ade80;
+    }
+
+    /* Showcase Layout */
+    .showcase-stage {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 1040px) {
+      .showcase-stage {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* The Workbench Canvas */
+    .stage-canvas {
+      height: 600px;
+      background: 
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 1px, transparent 1px) 0 0/24px 24px,
+        radial-gradient(circle at 50% 40%, #151522 0%, #060609 100%);
+      border: 1px dashed #28283c;
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      touch-action: none;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Workbench Target Zones Layout */
+    .workbench-grid {
+      position: absolute;
+      inset: 20px;
+      display: flex;
+      gap: 16px;
+      pointer-events: none;
+      align-items: stretch;
+    }
+
+    /* Target Drop Card (Base Styling) */
+    .drop-target-card {
+      background: rgba(18, 18, 26, 0.85);
+      border: 2px dashed #2c2c40;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s, box-shadow 0.22s;
+      pointer-events: auto;
+      backdrop-filter: blur(8px);
+      position: relative;
+    }
+
+    .drop-target-card.dock-slot {
+      width: 220px;
+      flex-shrink: 0;
+    }
+
+    .drop-target-card.project-card {
+      width: var(--card-width, 310px);
+      flex-shrink: 0;
+    }
+
+    /* Card Resize Handle */
+    .card-resize-handle {
+      position: absolute;
+      top: 0;
+      right: -8px;
+      width: 16px;
+      height: 100%;
+      cursor: ew-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 25;
+      touch-action: none;
+    }
+
+    .handle-grip {
+      width: 4px;
+      height: 38px;
+      border-radius: 3px;
+      background: #3c3c54;
+      transition: all 0.15s ease;
+    }
+
+    .card-resize-handle:hover .handle-grip,
+    .card-resize-handle.is-resizing .handle-grip {
+      background: var(--accent-light);
+      box-shadow: 0 0 10px var(--accent-light);
+      height: 52px;
+      width: 5px;
+    }
+
+    .drop-target-card.highlight-hover {
+      border-color: var(--accent-light);
+      background: rgba(45, 212, 191, 0.08);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(45, 212, 191, 0.15);
+    }
+
+    .drop-target-card.dock-slot.highlight-hover {
+      border-color: var(--accent);
+      background: rgba(26, 136, 92, 0.12);
+      box-shadow: 0 12px 28px rgba(26, 136, 92, 0.2);
+    }
+
+    .target-tag {
+      font-size: 0.68rem;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .target-title {
+      font-size: 0.82rem;
+      color: #fff;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .target-desc {
+      font-size: 0.72rem;
+      color: #727288;
+      line-height: 1.4;
+      margin-top: 8px;
+    }
+
+    .target-status-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #181824;
+      border: 1px solid #2f2f42;
+      color: #aaa;
+      margin-top: 10px;
+      width: fit-content;
+      transition: all 0.2s ease;
+    }
+
+    .target-status-badge.applied {
+      background: rgba(26, 136, 92, 0.3);
+      border-color: #1A885C;
+      color: #4ade80;
+      font-weight: 700;
+    }
+
+    /* Portal Zone (Navigation Trigger) */
+    .portal-zone {
+      border-color: #3b2854;
+      background: rgba(28, 18, 42, 0.7);
+    }
+    .portal-zone.highlight-hover {
+      border-color: #c084fc;
+      background: rgba(192, 132, 252, 0.12);
+      box-shadow: 0 12px 28px rgba(192, 132, 252, 0.2);
+    }
+
+    /* ----------------------------------------------------
+       THE DRAGGABLE STICKER (SEPARATED COORDINATE ROOTS)
+       sticker-root: ONLY receives translate3d(X, Y)
+       sticker-body: ONLY receives scale, hover, settle
+       ---------------------------------------------------- */
+    .sticker-root {
+      position: absolute;
+      width: 220px;
+      height: 230px; /* Scaled down slightly to fit canvas gracefully */
+      top: 60px;
+      left: 30px;
+      cursor: grab;
+      touch-action: none;
+      will-change: transform;
+      z-index: 50;
+    }
+
+    .sticker-root:active,
+    body.is-dragging .sticker-root {
+      cursor: grabbing !important;
+    }
+
+    .sticker-body {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform-origin: center center;
+      transition: transform 0.15s ease-out;
+      will-change: transform;
+    }
+
+    .sticker-root:hover .sticker-body {
+      transform: translateY(-4px) scale(1.02);
+    }
+
+    body.is-dragging .sticker-root .sticker-body {
+      transform: scale(1.06);
+    }
+
+    /* Drop Shadow Container */
+    .sticker-shadow-wrap {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      filter: drop-shadow(0 var(--sticker-shadow-y) var(--sticker-shadow-blur) rgba(0, 0, 0, var(--sticker-shadow-opacity)));
+    }
+
+    /* Sticker Art Wrapper (Supports 2 FPS Organic Boil) */
+    .sticker-art-wrap {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      transform-origin: center center;
+    }
+
+    .sticker-art-wrap.has-boil {
+      filter: url(#stickerBoilFilter);
+    }
+
+    /* CRT Monitor Base PNG */
+    .sticker-base-png {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    /* Masked Specular Glossy Highlight Layer */
+    .sticker-highlight-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+
+      -webkit-mask-image: url('../workstickerpng.png');
+      mask-image: url('../workstickerpng.png');
+      -webkit-mask-size: contain;
+      mask-size: contain;
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      mask-position: center;
+
+      mix-blend-mode: var(--sheen-blend, screen);
+      opacity: var(--sheen-opacity, 0.95);
+      transition: opacity 0.12s ease-out;
+    }
+
+    /* Ambient Gloss Resin Dome (Clear-coat depth) */
+    .sticker-gloss-dome {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(ellipse 95% 75% at 50% 18%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.05) 45%, transparent 75%);
+      pointer-events: none;
+      mix-blend-mode: screen;
+      opacity: 0.85;
+    }
+
+    /* Dynamic Gloss Specular Glint (Sweeps on motion/tilt) */
+    .sticker-gloss-glint {
+      position: absolute;
+      inset: -60%;
+      width: 220%;
+      height: 220%;
+      pointer-events: none;
+      will-change: background;
+    }
+
+    /* ----------------------------------------------------
+       CORNER PEEL AFFORDANCE & VECTOR PUNCH-OUT
+       - Punch-Out: Pure black #000000 mask punches out underlying vector layers
+       - Trajectory: Exact original trajectory (+7.145px X, +45.276px Y)
+       - States: Inactive (0% flat), Active (100% peel), Loop (0.8s)
+       - Dynamic Offsets: Parametric translate, scale, and rotate
+       ---------------------------------------------------- */
+    .sticker-peel-overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+      transform: translate(var(--peel-x), var(--peel-y)) scale(var(--peel-scale)) rotate(var(--peel-rotate));
+      transform-origin: 200px 240px;
+      z-index: 10;
+    }
+
+    .peel-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    /* Keyframes for Continuous Loop Mode */
+    @keyframes kf_sim_peel_trans {
+      0%, 4.68% {
+        transform: translate(246.888px, 210.66px) rotate(111.625deg);
+        animation-timing-function: cubic-bezier(0, 0.274, 0.58, 1);
+      }
+      91.63%, 100% {
+        transform: translate(254.033px, 255.936px) rotate(111.625deg);
+      }
+    }
+    @keyframes kf_sim_peel_fill {
+      0%, 4.68% { fill: #8C8585; animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1); }
+      91.63%, 100% { fill: #000000; }
+    }
+    @keyframes kf_sim_main_fill {
+      0%, 4.68% { fill: #8C8585; animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1); }
+      91.63%, 100% { fill: #000000; }
+    }
+    @keyframes kf_sim_mask_trans {
+      0%, 4.68% {
+        transform: translate(148.874px, 226.758px) rotate(-10.7228deg);
+        animation-timing-function: cubic-bezier(0, 0.274, 0.58, 1);
+      }
+      91.63%, 100% {
+        transform: translate(153.703px, 245.503px) rotate(-10.7228deg);
+      }
+    }
+
+    /* BASE RESTING (FRAME 0) DEFAULTS */
+    .peel-flap-path {
+      transform-box: view-box;
+      transform-origin: 0 0;
+      transform: translate(246.888px, 210.66px) rotate(111.625deg);
+      fill: #8C8585;
+      transition: transform 0.38s cubic-bezier(0, 0.274, 0.58, 1), fill 0.32s cubic-bezier(0.5, 0, 0.5, 1);
+    }
+    .peel-mask-path {
+      transform-box: view-box;
+      transform-origin: 0 0;
+      transform: translate(148.874px, 226.758px) rotate(-10.7228deg);
+      fill: #000000;
+      transition: transform 0.38s cubic-bezier(0, 0.274, 0.58, 1);
+    }
+    .peel-main-path {
+      fill: #8C8585;
+      transition: fill 0.32s cubic-bezier(0.5, 0, 0.5, 1);
+    }
+
+    /* 1. INACTIVE STATE (Frame 0: Resting flat) */
+    .peel-state-inactive .peel-main-path {
+      animation: none !important;
+      fill: #8C8585 !important;
+    }
+    .peel-state-inactive .peel-flap-path {
+      animation: none !important;
+      transform: translate(246.888px, 210.66px) rotate(111.625deg) !important;
+      fill: #8C8585 !important;
+      transform-origin: 0 0;
+    }
+    .peel-state-inactive .peel-mask-path {
+      animation: none !important;
+      transform: translate(148.874px, 226.758px) rotate(-10.7228deg) !important;
+      fill: #000000 !important; /* Pure black -> 100% clean punchout */
+      transform-origin: 0 0;
+    }
+
+    /* 2. ACTIVE STATE (100% Peeled when Applied to Card) */
+    .peel-state-active .peel-main-path {
+      animation: none !important;
+      fill: #000000 !important;
+      transition: fill 0.32s cubic-bezier(0.5, 0, 0.5, 1);
+    }
+    .peel-state-active .peel-flap-path {
+      animation: none !important;
+      transform: translate(254.033px, 255.936px) rotate(111.625deg) !important;
+      fill: #000000 !important;
+      transform-origin: 0 0;
+      transition: transform 0.38s cubic-bezier(0, 0.274, 0.58, 1), fill 0.32s cubic-bezier(0.5, 0, 0.5, 1);
+    }
+    .peel-state-active .peel-mask-path {
+      animation: none !important;
+      transform: translate(153.703px, 245.503px) rotate(-10.7228deg) !important;
+      fill: #000000 !important;
+      transform-origin: 0 0;
+      transition: transform 0.38s cubic-bezier(0, 0.274, 0.58, 1);
+    }
+
+    /* 3. LOOP STATE (Continuous 0.8s Animation) */
+    .peel-state-loop .peel-main-path {
+      animation: kf_sim_main_fill 0.8s linear infinite !important;
+    }
+    .peel-state-loop .peel-flap-path {
+      transform-origin: 0 0;
+      animation: kf_sim_peel_trans 0.8s linear infinite, kf_sim_peel_fill 0.8s linear infinite !important;
+    }
+    .peel-state-loop .peel-mask-path {
+      transform-origin: 0 0;
+      animation: kf_sim_mask_trans 0.8s linear infinite !important;
+      fill: #000000 !important;
+    }
+
+    .badge-shape {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-fill {
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      color: #22d3ee;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-motion {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #fbbf24;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.04em;
+    }
+
+    /* ----------------------------------------------------
+       THE ADAPTIVE FLOATING PILL (LIVE PREDICTIVE HUD)
+       - Solid black fill (#000000)
+       - Zero outlines, zero drop shadows, zero glows
+       - Smooth animating width on dynamic text changes
+       ---------------------------------------------------- */
+    .adaptive-pill {
+      position: absolute;
+      top: -38px;
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      background: #000000 !important;
+      color: #ffffff !important;
+      border: none !important;
+      outline: none !important;
+      border-radius: 9999px;
+      padding: 6px 14px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      pointer-events: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      opacity: 0;
+      box-shadow: none !important;
+      z-index: 100;
+      overflow: hidden;
+      box-sizing: border-box;
+      interpolate-size: allow-keywords;
+      transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .sticker-root:hover .adaptive-pill,
+    body.is-dragging .adaptive-pill {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0px);
+    }
+
+    /* Pill Modifier States: Solid Black Fill, Crisp White Text, Zero Outlines or Glows */
+    .adaptive-pill.state-dock,
+    .adaptive-pill.state-project,
+    .adaptive-pill.state-portal,
+    .adaptive-pill.state-click {
+      background: #000000 !important;
+      color: #ffffff !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    .pill-icon {
+      font-size: 0.72rem;
+      color: #ffffff !important;
+    }
+
+    #pillText {
+      color: #ffffff !important;
+      font-weight: 600;
+    }
+
+    /* HUD Bar */
+    .stage-hud {
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      background: rgba(10, 10, 16, 0.94);
+      backdrop-filter: blur(8px);
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid #202030;
+      flex-wrap: wrap;
+      gap: 8px;
+      z-index: 20;
+    }
+
+    .hud-val {
+      color: #4ade80;
+      font-weight: 700;
+    }
+
+    /* Control Panel */
+    .control-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 820px;
+      overflow-y: auto;
+    }
+
+    .panel-section-title {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--accent-light);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .toggle-card-box {
+      background: #0f0f16;
+      border: 1px solid #252536;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toggle-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .toggle-row-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+    }
+
+    .btn {
+      background: #191924;
+      border: 1px solid #2d2d3e;
+      color: #bbb;
+      padding: 7px 8px;
+      border-radius: 6px;
+      font-size: 0.73rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .btn:hover {
+      background: #222230;
+      border-color: #44445c;
+      color: #fff;
+    }
+
+    .btn.active {
+      background: var(--accent);
+      border-color: var(--accent-light);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .btn-block {
+      width: 100%;
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.71rem;
+      color: var(--text-muted);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 4px;
+      background: #242434;
+      border-radius: 2px;
+      accent-color: var(--accent-light);
+      cursor: pointer;
+    }
+
+    select {
+      background: #191924;
+      border: 1px solid #2d2d3e;
+      color: #eee;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.73rem;
+      font-family: inherit;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    /* Virtual Gyro Puck */
+    .virtual-gyro-box {
+      background: #0d0d12;
+      border: 1px solid #20202e;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .gyro-puck-track {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, #1a1a26 0%, #08080c 100%);
+      border: 2px dashed #34344a;
+      position: relative;
+      cursor: crosshair;
+    }
+
+    .gyro-puck {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #fff;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 10px var(--accent);
+      pointer-events: none;
+    }
+
+    /* Simulation Log */
+    .action-log-box {
+      background: #09090d;
+      border: 1px solid #1c1c28;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 0.7rem;
+      color: #4ade80;
+      line-height: 1.5;
+      max-height: 90px;
+      overflow-y: auto;
+    }
+
+    /* Interactive 2-Point Gradient Vector Pad */
+    .gradient-pad-box {
+      background: #0b0b12;
+      border: 1px solid #252538;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+    }
+
+    .gradient-vector-canvas {
+      width: 250px;
+      height: 155px;
+      background: radial-gradient(circle at 50% 50%, #151522 0%, #07070c 100%);
+      border: 1px solid #323246;
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: crosshair;
+    }
+
+    .grad-pad-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .grad-handle {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+      box-shadow: 0 0 12px rgba(0,0,0,0.9);
+      z-index: 10;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .grad-handle:active {
+      cursor: grabbing !important;
+    }
+
+    .grad-handle.handle-p1 {
+      background: #2dd4bf;
+      color: #042f2e;
+      border: 2px solid #fff;
+    }
+
+    .grad-handle.handle-p2 {
+      background: #c084fc;
+      color: #3b0764;
+      border: 2px solid #fff;
+    }
+
+    .coord-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <h1>
+      <span>🏷️ Navigation Sticker & Adaptive Pill Lab</span>
+    </h1>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <span class="badge badge-green">Click: Fast Nav</span>
+      <span class="badge" style="color: #2dd4bf;">Drag: Context Modifier</span>
+      <span class="badge">Adaptive Predictive HUD</span>
+    </div>
+  </header>
+
+  <!-- RETRO 2 FPS BOIL SVG DISPLACEMENT FILTER -->
+  <svg style="position: absolute; width: 0; height: 0; pointer-events: none; overflow: hidden;" aria-hidden="true">
+    <defs>
+      <filter id="stickerBoilFilter" x="-20%" y="-20%" width="140%" height="140%">
+        <feTurbulence id="boilTurbulence" type="fractalNoise" baseFrequency="0.038" numOctaves="2" seed="1" result="noise" />
+        <feDisplacementMap id="boilDisplacement" in="SourceGraphic" in2="noise" scale="2.2" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- SHOWCASE STAGE -->
+  <div class="showcase-stage">
+
+    <!-- LEFT: WORKBENCH CANVAS -->
+    <div class="stage-canvas" id="canvasArea">
+      
+      <!-- TARGET ZONES ON THE WORKBENCH -->
+      <div class="workbench-grid" id="workbenchGrid">
+        
+        <!-- Target 1: Home Dock Slot -->
+        <div class="drop-target-card dock-slot" id="targetDock" data-target="dock">
+          <div>
+            <div class="target-tag"><span>SLOT 00</span><span>// HOME</span></div>
+            <div class="target-title">Sticker Dock</div>
+            <div class="target-desc">Home resting pad for the Work Navigation Sticker.</div>
+          </div>
+          <div class="target-status-badge applied" id="badgeDock">● Seated on Dock</div>
+        </div>
+
+        <!-- Target 2: Project 01 Card -->
+        <div class="drop-target-card project-card" id="targetPrj1" data-target="project1">
+          <div>
+            <div class="target-tag"><span>PROJECT_01</span><span>[ 3D ENGINE ]</span></div>
+            <div class="target-title">Blender Realtime Viewport</div>
+            <div class="target-desc">Procedural geometric node tree and custom shading models.</div>
+          </div>
+          <div class="target-status-badge" id="badgePrj1">+ Drop to Filter</div>
+
+          <!-- Interactive Card Edge Resize Handle -->
+          <div class="card-resize-handle" id="resizeHandlePrj1" title="Drag to resize card width">
+            <div class="handle-grip"></div>
+          </div>
+        </div>
+
+        <!-- Target 3: Project 02 Card -->
+        <div class="drop-target-card project-card" id="targetPrj2" data-target="project2">
+          <div>
+            <div class="target-tag"><span>PROJECT_02</span><span>[ PORTFOLIO ]</span></div>
+            <div class="target-title">Bespoke Vector System</div>
+            <div class="target-desc">Custom interactive paper cards with physical corner-fold mechanics.</div>
+          </div>
+          <div class="target-status-badge" id="badgePrj2">+ Drop to Attach</div>
+
+          <!-- Interactive Card Edge Resize Handle -->
+          <div class="card-resize-handle" id="resizeHandlePrj2" title="Drag to resize card width">
+            <div class="handle-grip"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- THE DRAGGABLE STICKER -->
+      <div class="sticker-root" id="stickerRoot">
+        
+        <!-- THE ADAPTIVE FLOATING PILL -->
+        <div class="adaptive-pill" id="adaptivePill">
+          <span class="pill-icon" id="pillIcon">✦</span>
+          <span id="pillText">CLICK: NAVIGATE HOME | DRAG TO APPLY</span>
+        </div>
+
+        <!-- Body Container (Handles Scale & Lift Bounce) -->
+        <div class="sticker-body" id="stickerBody">
+          
+          <div class="sticker-shadow-wrap">
+            <!-- Sticker Art Layer (Applies 2 FPS Hand-Drawn Boil) -->
+            <div class="sticker-art-wrap" id="stickerArtWrap">
+              <!-- CRT Monitor Base Art -->
+              <img class="sticker-base-png" src="../workstickerpng.png" alt="CRT Work Sticker">
+
+              <!-- Masked Specular Glossy Layer (Authentic Clear-Coat Resin + Moving Specular Glint) -->
+              <div class="sticker-highlight-layer" id="highlightLayer">
+                <div class="sticker-gloss-dome" id="stickerGlossDome"></div>
+                <div class="sticker-gloss-glint" id="stickerGlossGlint"></div>
+              </div>
+
+              <!-- Corner Peel Affordance Overlay (Card 2: Vector Layers Punch-Out) -->
+              <div class="sticker-peel-overlay peel-state-inactive" id="stickerPeelOverlay">
+                <svg class="peel-svg" id="peelSvg" viewBox="0 0 305 317" preserveAspectRatio="none">
+                  <defs>
+                    <!-- Punch-Out Mask: Pure black (#000000) punches out vector layers below into clean transparency! -->
+                    <mask id="stickerPeelMask" maskUnits="userSpaceOnUse" x="0" y="0" width="305" height="317">
+                      <rect width="100%" height="100%" fill="white" />
+                      <path id="stickerMaskInverseClip" class="peel-mask-path" transform="translate(148.874 226.758) rotate(-10.7228)" d="M32.3323 0.929956L81.3395 0L109.556 65.0203L0 66.9418L32.3323 0.929956Z" fill="#000000" />
+                    </mask>
+                  </defs>
+
+                  <!-- Vector layers below it, masked by the punch-out mask! -->
+                  <g id="stickerPeelVectorGroup" mask="url(#stickerPeelMask)">
+                    <!-- 1. White Underside Border -->
+                    <path id="stickerPeelBg" transform="translate(151.867 223.861) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="white"/>
+
+                    <!-- 2. Dark Adhesive Underside -->
+                    <path id="stickerPeelMain" class="peel-main-path" transform="translate(159.813 224.784) rotate(-72.9716)" d="M31.7876 0L59.3165 47.6814H4.25873L31.7876 0Z" fill="#8C8585"/>
+
+                    <!-- 3. Folded Flap (Peel) with original motion trajectory -->
+                    <path id="stickerPeelFlap" class="peel-flap-path" transform="translate(246.888 210.66) rotate(111.625)" d="M33.0869 -0.75L60.6152 46.9316L61.915 49.1816H1.66113L2.95996 46.9316L30.4883 -0.75L31.7881 -3L33.0869 -0.75Z" fill="#8C8585" stroke="white" stroke-width="3"/>
+                  </g>
+                </svg>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- HUD Telemetry -->
+      <div class="stage-hud">
+        <span>State: <span id="stickerStateReadout" class="hud-val">Seated on Dock</span></span>
+        <span>Target: <span id="targetReadout" class="hud-val">Dock (Home)</span></span>
+        <span>Peel: <span id="peelStateReadout" class="hud-val">Inactive (Resting)</span></span>
+        <span>Highlight: <span id="sheenPosReadout" class="hud-val">50%</span></span>
+        <span>Opacity: <span id="opacityReadout" class="hud-val">85%</span></span>
+      </div>
+    </div>
+
+    <!-- RIGHT: CONTROLS & TEST PANEL -->
+    <div class="control-panel">
+      
+      <!-- 1. NAVIGATION TEST LOG -->
+      <div class="toggle-card-box">
+        <div class="panel-section-title">⚡ Navigation & Action Event Log</div>
+        <div class="action-log-box" id="actionLog">
+          <div>[SYSTEM READY] Ready for Click or Drag.</div>
+        </div>
+      </div>
+
+      <!-- 2. HAND-DRAWN BOIL EFFECT (2 FPS) -->
+      <div class="toggle-card-box">
+        <div class="panel-section-title">✦ 2 FPS Hand-Drawn Line Boil</div>
+        <button class="btn btn-block" id="btnToggleBoil" onclick="toggleBoil()">
+          ✦ 2 FPS Hand-Drawn Boil: <b>OFF</b>
+        </button>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Boil Jitter Intensity (Displacement)</span>
+            <span id="lblBoilScale">2.2px</span>
+          </div>
+          <input type="range" id="slBoilScale" min="0.5" max="5.0" step="0.1" value="2.2">
+        </div>
+
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Boil Frame Rate</span>
+          </div>
+          <select id="selBoilFps">
+            <option value="500" selected>2 FPS (500ms — Authentic Retro Boil)</option>
+            <option value="1000">1 FPS (1000ms — Low Frequency Paper Shift)</option>
+            <option value="333">3 FPS (333ms — Medium Jitter)</option>
+            <option value="250">4 FPS (250ms — Energetic Cell Wobble)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 2.5. CORNER PEEL AFFORDANCE & VECTOR PUNCH-OUT CONTROLS -->
+      <div class="toggle-card-box" style="border: 1px solid rgba(45, 212, 191, 0.35); background: rgba(18, 24, 28, 0.65);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <div class="panel-section-title" style="margin: 0; color: #5eead4;">✦ Corner Peel Affordance</div>
+          <span class="badge" id="peelStateBadge" style="font-size: 0.62rem;">INACTIVE (Seated on Dock)</span>
+        </div>
+        <div style="font-size: 0.68rem; color: #849a94; line-height: 1.4; margin-bottom: 8px;">
+          Vector layers punch-out: <b style="color: #f1f1f6;">Active when Applied</b> to project card, <b style="color: #94a3b8;">Inactive</b> when docked.
+        </div>
+
+        <!-- Mode Buttons -->
+        <div class="toggle-row" style="margin-bottom: 10px;">
+          <button class="btn active" id="btnPeelAuto" data-mode="auto" onclick="setPeelMode('auto')">Auto (Applied/Dock)</button>
+          <button class="btn" id="btnPeelInactive" data-mode="inactive" onclick="setPeelMode('inactive')">Force Inactive</button>
+          <button class="btn" id="btnPeelActive" data-mode="active" onclick="setPeelMode('active')">Force Active</button>
+          <button class="btn" id="btnPeelLoop" data-mode="loop" onclick="setPeelMode('loop')">Loop (0.8s)</button>
+        </div>
+
+        <!-- Parametric Offset Controls -->
+        <div style="border-top: 1px solid rgba(255,255,255,0.07); padding-top: 8px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 0.7rem; color: #2dd4bf; font-weight: 700;">Corner Offset & Transform Controls:</div>
+
+          <!-- X Offset -->
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Peel X Offset</span>
+              <span id="lblPeelX" style="color: #2dd4bf;">+71px</span>
+            </div>
+            <input type="range" id="slPeelX" min="-100" max="100" step="1" value="71">
+          </div>
+
+          <!-- Y Offset -->
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Peel Y Offset</span>
+              <span id="lblPeelY" style="color: #2dd4bf;">+67px</span>
+            </div>
+            <input type="range" id="slPeelY" min="-100" max="100" step="1" value="67">
+          </div>
+
+          <!-- Scale -->
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Peel Scale</span>
+              <span id="lblPeelScale" style="color: #2dd4bf;">1.30x</span>
+            </div>
+            <input type="range" id="slPeelScale" min="0.4" max="1.8" step="0.05" value="1.3">
+          </div>
+
+          <!-- Rotation -->
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Peel Rotation</span>
+              <span id="lblPeelRot" style="color: #2dd4bf;">0°</span>
+            </div>
+            <input type="range" id="slPeelRot" min="-45" max="45" step="1" value="0">
+          </div>
+
+          <!-- Reset Button -->
+          <button class="btn btn-block" style="font-size: 0.66rem; margin-top: 4px; padding: 4px;" onclick="resetPeelOffsets()">
+            ↺ Reset Peel Offsets to Default (+71px, +67px, 1.30x, 0°)
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. MOTION DRIVERS & AUTO BREATHE TUNING -->
+      <div class="toggle-card-box">
+        <div class="panel-section-title">Highlight Motion Driver</div>
+        <div class="toggle-row">
+          <button class="btn active" id="btnDriverDrag" onclick="setDriver('mouse')">Drag Motion Only</button>
+          <button class="btn" id="btnDriverAuto" onclick="setDriver('auto')">Auto Breathe Sweep</button>
+        </div>
+        <div style="font-size: 0.67rem; color: #787890; margin-top: 2px;">
+          Note: Highlight stays still at rest. It only moves during drag or auto breathe.
+        </div>
+
+        <div style="border-top: 1px solid #232336; padding-top: 10px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 0.72rem; color: #a5b4fc; font-weight: 700;">Auto Breathe Tuning:</div>
+          
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Breathe Sweep Duration</span>
+              <span id="lblBreatheDuration">1.6s</span>
+            </div>
+            <input type="range" id="slBreatheDuration" min="0.4" max="4.0" step="0.1" value="1.6">
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Pause / Rest Delay</span>
+              <span id="lblBreatheDelay">0.55s</span>
+            </div>
+            <input type="range" id="slBreatheDelay" min="0.0" max="3.0" step="0.05" value="0.55">
+          </div>
+
+          <div class="slider-row">
+            <div class="slider-label">
+              <span>Timing Curve / Ease</span>
+            </div>
+            <select id="selBreatheEase">
+              <option value="power2.out" selected>power2.out (Fast initial sweep, smooth settle)</option>
+              <option value="power3.out">power3.out (Pronounced deceleration)</option>
+              <option value="sine.inOut">sine.inOut (Harmonic organic breathing wave)</option>
+              <option value="power1.inOut">power1.inOut (Smooth continuous S-curve)</option>
+              <option value="expo.out">expo.out (High-speed glint then slow drift)</option>
+              <option value="linear">linear (Uniform constant velocity)</option>
+              <option value="circ.out">circ.out (Sharp circular snap-glide)</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-block" id="btnRequestGyro" style="border-color: var(--accent); color: #fff; margin-top: 4px;" onclick="enableMobileGyro()">
+          📱 Enable Mobile Gyroscope (Tilt Phone)
+        </button>
+
+        <!-- Desktop Virtual Gyroscope Joystick -->
+        <div class="virtual-gyro-box" style="margin-top: 6px;">
+          <div style="font-size: 0.7rem; color: #888;">Desktop Gyro Tilt Simulator:</div>
+          <div class="gyro-puck-track" id="gyroTrack">
+            <div class="gyro-puck" id="gyroPuck"></div>
+          </div>
+          <div style="font-size: 0.65rem; color: #666;">Drag puck to simulate phone tilt</div>
+        </div>
+      </div>
+
+      <!-- 4. CARD X-SIZE & EDGE CLAMPING TEST -->
+      <div class="toggle-card-box">
+        <div class="panel-section-title">📐 Target Card X-Size (Width) Resize</div>
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Project Card Width</span>
+            <span id="lblCardWidth">310px</span>
+          </div>
+          <input type="range" id="slCardWidth" min="170" max="460" value="310">
+        </div>
+        <div class="toggle-row" style="margin-top: 2px;">
+          <button class="btn" style="font-size: 0.65rem;" onclick="setCardWidthPreset(200)">200px (Narrow)</button>
+          <button class="btn" style="font-size: 0.65rem;" onclick="setCardWidthPreset(310)">310px (Default)</button>
+          <button class="btn" style="font-size: 0.65rem;" onclick="setCardWidthPreset(420)">420px (Wide)</button>
+        </div>
+        <div style="font-size: 0.67rem; color: #787890; line-height: 1.4; margin-top: 2px;">
+          • Sticker sticks exactly where dropped (NO center snap, NO change in Y).<br>
+          • Drag card edge or slider: edge pushes sticker only when touching its center!
+        </div>
+      </div>
+
+      <!-- 5. DRAG RELEASE BEHAVIOR -->
+      <div class="toggle-card-box">
+        <div class="panel-section-title">Drag Release Behavior</div>
+        <div class="toggle-row">
+          <button class="btn active" id="btnSnapSpring" onclick="setDragBehavior('snap')">Snap to Nearest Target</button>
+          <button class="btn" id="btnStayPlace" onclick="setDragBehavior('stay')">Stay Where Dropped</button>
+        </div>
+      </div>
+
+      <!-- 6. GLOSSY VINYL STICKER SHEEN -->
+      <div class="toggle-card-box">
+        <div class="panel-section-title">✨ Glossy Vinyl Sticker Sheen</div>
+        <div style="font-size: 0.68rem; color: #84849a; line-height: 1.4; margin-bottom: 6px;">
+          Lustrous clear-coat resin finish with moving specular gloss glint.
+        </div>
+
+        <!-- Gloss Style Presets -->
+        <div class="toggle-row" style="margin-bottom: 8px;">
+          <button class="btn" id="btnGlossUltra" onclick="setGlossStyle('ultra')">✦ Ultra Gloss</button>
+          <button class="btn" id="btnGlossResin" onclick="setGlossStyle('resin')">🔮 Epoxy Dome</button>
+          <button class="btn active" id="btnGlossStudio" onclick="setGlossStyle('studio')">💡 Studio Bar</button>
+          <button class="btn" id="btnGlossSubtle" onclick="setGlossStyle('subtle')">✨ Subtle Sheen</button>
+        </div>
+
+        <!-- Gloss Sweep Angle -->
+        <div class="slider-row">
+          <div class="slider-label">
+            <span style="color: #2dd4bf; font-weight: 700;">Gloss Angle</span>
+            <span id="lblGlossAngle">-140°</span>
+          </div>
+          <input type="range" id="slGlossAngle" min="-180" max="180" value="-140">
+        </div>
+        <div class="toggle-row-4" style="margin-top: -2px; margin-bottom: 6px;">
+          <button class="btn" style="font-size: 0.63rem; padding: 3px;" onclick="setGlossAnglePreset(-140)">-140° Studio</button>
+          <button class="btn" style="font-size: 0.63rem; padding: 3px;" onclick="setGlossAnglePreset(-155)">-155° Vintage</button>
+          <button class="btn" style="font-size: 0.63rem; padding: 3px;" onclick="setGlossAnglePreset(-45)">-45° Diag</button>
+          <button class="btn" style="font-size: 0.63rem; padding: 3px;" onclick="setGlossAnglePreset(0)">0° Vert</button>
+        </div>
+
+        <!-- Gloss Opacity -->
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Gloss Specular Opacity</span>
+            <span id="lblGlossOpacity">45%</span>
+          </div>
+          <input type="range" id="slOpacity" min="10" max="100" value="45">
+        </div>
+
+        <!-- Blend Mode -->
+        <div class="slider-row" style="margin-top: 4px;">
+          <div class="slider-label">
+            <span>Blend Mode</span>
+          </div>
+          <select id="selBlend">
+            <option value="overlay" selected>overlay (Soft In-Print Satin — Default)</option>
+            <option value="screen">screen (Glass Specular Glare — Crisp & Luminous)</option>
+            <option value="plus-lighter">plus-lighter (Hyper-Gloss Specular Glint)</option>
+            <option value="color-dodge">color-dodge (Hologram Glint)</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // ----------------------------------------------------
+    // ELEMENT REFERENCES
+    // ----------------------------------------------------
+    const stickerRoot = document.getElementById('stickerRoot');
+    const stickerBody = document.getElementById('stickerBody');
+    const adaptivePill = document.getElementById('adaptivePill');
+    const pillIcon = document.getElementById('pillIcon');
+    const pillText = document.getElementById('pillText');
+    const actionLog = document.getElementById('actionLog');
+    const canvasArea = document.getElementById('canvasArea');
+
+    // Targets
+    const targetDock = document.getElementById('targetDock');
+    const targetPrj1 = document.getElementById('targetPrj1');
+    const targetPrj2 = document.getElementById('targetPrj2');
+    const badgeDock = document.getElementById('badgeDock');
+    const badgePrj1 = document.getElementById('badgePrj1');
+    const badgePrj2 = document.getElementById('badgePrj2');
+
+    // Readouts
+    const stickerStateReadout = document.getElementById('stickerStateReadout');
+    const targetReadout = document.getElementById('targetReadout');
+    const sheenPosReadout = document.getElementById('sheenPosReadout');
+    const opacityReadout = document.getElementById('opacityReadout');
+
+    // Glossy Specular Highlight Layer
+    const highlightLayer = document.getElementById('highlightLayer');
+    const stickerGlossDome = document.getElementById('stickerGlossDome');
+    const stickerGlossGlint = document.getElementById('stickerGlossGlint');
+    const slGlossAngle = document.getElementById('slGlossAngle');
+    const lblGlossAngle = document.getElementById('lblGlossAngle');
+    const slOpacity = document.getElementById('slOpacity');
+    const lblGlossOpacity = document.getElementById('lblGlossOpacity');
+    const selBlend = document.getElementById('selBlend');
+
+    // Controls & Elements
+    const stickerArtWrap = document.getElementById('stickerArtWrap');
+    const boilTurbulence = document.getElementById('boilTurbulence');
+    const boilDisplacement = document.getElementById('boilDisplacement');
+    const btnToggleBoil = document.getElementById('btnToggleBoil');
+    const slBoilScale = document.getElementById('slBoilScale');
+    const lblBoilScale = document.getElementById('lblBoilScale');
+    const selBoilFps = document.getElementById('selBoilFps');
+
+    // Card Resize Controls
+    const slCardWidth = document.getElementById('slCardWidth');
+    const lblCardWidth = document.getElementById('lblCardWidth');
+
+    // Auto-Breathe Controls
+    const slBreatheDuration = document.getElementById('slBreatheDuration');
+    const lblBreatheDuration = document.getElementById('lblBreatheDuration');
+    const slBreatheDelay = document.getElementById('slBreatheDelay');
+    const lblBreatheDelay = document.getElementById('lblBreatheDelay');
+    const selBreatheEase = document.getElementById('selBreatheEase');
+
+    // State Variables
+    let currentGlossStyle = 'studio'; // 'ultra', 'resin', 'studio', 'subtle'
+    let glossAngle = -140;
+    let baseOpacity = 0.45;
+    let dragBehavior = 'snap';
+    let currentDriver = 'mouse';
+    let autoBreatheTimeline = null;
+    let currentAppliedTarget = 'dock'; // 'dock', 'project1', 'project2', 'desk'
+
+    // Corner Peel Affordance State & Offset References
+    let peelModeSetting = 'auto'; // 'auto', 'inactive', 'active', 'loop'
+    const stickerPeelOverlay = document.getElementById('stickerPeelOverlay');
+    const peelStateBadge = document.getElementById('peelStateBadge');
+    const peelStateReadout = document.getElementById('peelStateReadout');
+    const slPeelX = document.getElementById('slPeelX');
+    const slPeelY = document.getElementById('slPeelY');
+    const slPeelScale = document.getElementById('slPeelScale');
+    const slPeelRot = document.getElementById('slPeelRot');
+    const lblPeelX = document.getElementById('lblPeelX');
+    const lblPeelY = document.getElementById('lblPeelY');
+    const lblPeelScale = document.getElementById('lblPeelScale');
+    const lblPeelRot = document.getElementById('lblPeelRot');
+
+    function updatePeelStateVisuals(isDragging = isDraggingMode) {
+      if (!stickerPeelOverlay) return;
+
+      let effectiveState = 'inactive';
+
+      if (peelModeSetting === 'loop') {
+        effectiveState = 'loop';
+        if (peelStateBadge) {
+          peelStateBadge.textContent = 'LOOPING (0.8s)';
+          peelStateBadge.className = 'badge badge-green';
+        }
+        if (peelStateReadout) peelStateReadout.textContent = 'Looping Animation';
+      } else if (peelModeSetting === 'active') {
+        effectiveState = 'active';
+        if (peelStateBadge) {
+          peelStateBadge.textContent = 'ACTIVE (Forced 100%)';
+          peelStateBadge.className = 'badge badge-green';
+        }
+        if (peelStateReadout) peelStateReadout.textContent = 'Active (100% Peeling)';
+      } else if (peelModeSetting === 'inactive') {
+        effectiveState = 'inactive';
+        if (peelStateBadge) {
+          peelStateBadge.textContent = 'INACTIVE (Forced 0%)';
+          peelStateBadge.className = 'badge';
+        }
+        if (peelStateReadout) peelStateReadout.textContent = 'Inactive (Resting)';
+      } else {
+        // Auto Mode:
+        // While dragging: ALWAYS INACTIVE!
+        // When dropped: ACTIVE if applied to project1 or project2, INACTIVE otherwise
+        if (isDragging) {
+          effectiveState = 'inactive';
+          if (peelStateBadge) {
+            peelStateBadge.textContent = 'INACTIVE (Dragging / In Flight)';
+            peelStateBadge.className = 'badge';
+          }
+          if (peelStateReadout) peelStateReadout.textContent = 'Inactive (In Flight)';
+        } else {
+          const isApplied = (currentAppliedTarget === 'project1' || currentAppliedTarget === 'project2');
+          if (isApplied) {
+            effectiveState = 'active';
+            if (peelStateBadge) {
+              const targetName = currentAppliedTarget === 'project1' ? 'PRJ_01' : 'PRJ_02';
+              peelStateBadge.textContent = `ACTIVE (Applied: ${targetName})`;
+              peelStateBadge.className = 'badge badge-green';
+            }
+            if (peelStateReadout) peelStateReadout.textContent = 'Active (Applied)';
+          } else {
+            effectiveState = 'inactive';
+            if (peelStateBadge) {
+              peelStateBadge.textContent = 'INACTIVE (Seated on Dock)';
+              peelStateBadge.className = 'badge';
+            }
+            if (peelStateReadout) peelStateReadout.textContent = 'Inactive (Resting)';
+          }
+        }
+      }
+
+      stickerPeelOverlay.className = `sticker-peel-overlay peel-state-${effectiveState}`;
+    }
+
+    function setPeelMode(mode) {
+      peelModeSetting = mode;
+      ['btnPeelAuto', 'btnPeelInactive', 'btnPeelActive', 'btnPeelLoop'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      updatePeelStateVisuals();
+      logAction(`PEEL MODE: ${mode.toUpperCase()} (Corner vector punch-out updated)`);
+    }
+
+    function updatePeelOffsets() {
+      if (!slPeelX) return;
+      const x = parseFloat(slPeelX.value);
+      const y = parseFloat(slPeelY.value);
+      const scale = parseFloat(slPeelScale.value);
+      const rot = parseFloat(slPeelRot.value);
+
+      document.documentElement.style.setProperty('--peel-x', `${x}px`);
+      document.documentElement.style.setProperty('--peel-y', `${y}px`);
+      document.documentElement.style.setProperty('--peel-scale', scale);
+      document.documentElement.style.setProperty('--peel-rotate', `${rot}deg`);
+
+      if (lblPeelX) lblPeelX.textContent = `${x > 0 ? '+' : ''}${x}px`;
+      if (lblPeelY) lblPeelY.textContent = `${y > 0 ? '+' : ''}${y}px`;
+      if (lblPeelScale) lblPeelScale.textContent = `${scale.toFixed(2)}x`;
+      if (lblPeelRot) lblPeelRot.textContent = `${rot}°`;
+    }
+
+    function resetPeelOffsets() {
+      if (!slPeelX) return;
+      slPeelX.value = 71;
+      slPeelY.value = 67;
+      slPeelScale.value = 1.3;
+      slPeelRot.value = 0;
+      updatePeelOffsets();
+      logAction('PEEL OFFSETS RESET: X: +71px, Y: +67px, Scale: 1.30x, Rotation: 0°');
+    }
+
+    let boilInterval = null;
+    let isBoilActive = false;
+    let boilSeed = 1;
+    let lastNormX = 0;
+    let lastNormY = 0;
+
+    // Physical Sticking & Card Dimensions State
+    let currentCardWidth = 310;
+    let stuckCard = null;
+    let stuckAnchorX = 0;
+    let stuckAnchorY = 0;
+
+
+    // Root Coordinates
+    let currentX = 0;
+    let currentY = 0;
+
+    function logAction(msg) {
+      const entry = document.createElement('div');
+      entry.textContent = `> ${msg}`;
+      actionLog.prepend(entry);
+    }
+
+    function updateRootPosition(x, y) {
+      currentX = x;
+      currentY = y;
+      stickerRoot.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0px)`;
+    }
+
+    // ----------------------------------------------------
+    // CARD X-SIZE RESIZE & EDGE-PUSH ENGINE
+    // Sticker Y never changes; X moves only when edge hits center!
+    // ----------------------------------------------------
+    function updateCardWidth(newWidth) {
+      currentCardWidth = Math.max(160, Math.min(480, newWidth));
+      document.documentElement.style.setProperty('--card-width', `${currentCardWidth}px`);
+      if (slCardWidth) slCardWidth.value = currentCardWidth;
+      if (lblCardWidth) lblCardWidth.textContent = `${Math.round(currentCardWidth)}px`;
+
+      handleCardResize();
+    }
+
+    function setCardWidthPreset(width) {
+      updateCardWidth(width);
+    }
+
+    function handleCardResize() {
+      if (!stuckCard) return;
+
+      const canvasRect = canvasArea.getBoundingClientRect();
+      const cardRect = stuckCard.getBoundingClientRect();
+      
+      const cardLeft = cardRect.left - canvasRect.left;
+      const cardRight = cardLeft + cardRect.width;
+
+      const stickerWidth = 220;
+      const stickerCenterOffset = stickerWidth / 2; // 110px
+
+      // "remain in place no chane in its y"
+      currentY = stuckAnchorY;
+
+      // Sticker stays at stuckAnchorX UNLESS edge touches its center:
+      let targetX = stuckAnchorX;
+      const stickerCenterX = targetX + stickerCenterOffset;
+
+      // If card right edge shrinks past sticker center:
+      if (cardRight < stickerCenterX) {
+        // Edge touches its center and moves the sticker along with the edge
+        targetX = cardRight - stickerCenterOffset;
+      }
+
+      // If card left edge moves past sticker center:
+      if (cardLeft > stickerCenterX) {
+        targetX = cardLeft - stickerCenterOffset;
+      }
+
+      currentX = targetX;
+      updateRootPosition(currentX, currentY);
+    }
+
+    function initCardResizeHandles() {
+      const handles = [document.getElementById('resizeHandlePrj1'), document.getElementById('resizeHandlePrj2')];
+      handles.forEach(handle => {
+        if (!handle) return;
+        let isResizing = false;
+        let startX = 0;
+        let startWidth = 310;
+
+        handle.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          isResizing = true;
+          handle.classList.add('is-resizing');
+          try { handle.setPointerCapture(e.pointerId); } catch(err) {}
+          startX = e.clientX;
+          startWidth = currentCardWidth;
+
+          function onMove(ev) {
+            if (!isResizing) return;
+            const dx = ev.clientX - startX;
+            updateCardWidth(startWidth + dx);
+          }
+
+          function onUp(ev) {
+            if (!isResizing) return;
+            isResizing = false;
+            handle.classList.remove('is-resizing');
+            try { handle.releasePointerCapture(ev.pointerId); } catch(err) {}
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', onUp);
+          }
+
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp);
+          window.addEventListener('pointercancel', onUp);
+        });
+      });
+    }
+
+    if (slCardWidth) {
+      slCardWidth.addEventListener('input', () => {
+        updateCardWidth(parseFloat(slCardWidth.value));
+      });
+    }
+
+    // ----------------------------------------------------
+    // 2 FPS HAND-DRAWN BOIL ENGINE
+    // ----------------------------------------------------
+    function toggleBoil() {
+      setBoil(!isBoilActive);
+    }
+
+    function setBoil(enabled) {
+      isBoilActive = enabled;
+      if (stickerArtWrap) stickerArtWrap.classList.toggle('has-boil', enabled);
+      if (btnToggleBoil) {
+        btnToggleBoil.classList.toggle('active', enabled);
+        btnToggleBoil.innerHTML = enabled ? '✓ 2 FPS Hand-Drawn Boil: <b>ON</b>' : '✦ 2 FPS Hand-Drawn Boil: <b>OFF</b>';
+      }
+      
+      if (boilInterval) {
+        clearInterval(boilInterval);
+        boilInterval = null;
+      }
+
+      if (enabled) {
+        const ms = parseInt(selBoilFps.value) || 500;
+        const fps = Math.round(1000 / ms);
+        logAction(`BOIL ACTIVE: Frame-stepped line boil at ${fps} FPS (${ms}ms)`);
+        
+        boilInterval = setInterval(() => {
+          boilSeed = (boilSeed % 99) + 1;
+          if (boilTurbulence) boilTurbulence.setAttribute('seed', boilSeed);
+        }, ms);
+      } else {
+        logAction("BOIL DEACTIVATED: Sticker rendered static.");
+      }
+    }
+
+    function updateBoilParams() {
+      const scale = parseFloat(slBoilScale.value);
+      if (lblBoilScale) lblBoilScale.textContent = scale.toFixed(1) + 'px';
+      if (boilDisplacement) boilDisplacement.setAttribute('scale', scale);
+
+      if (isBoilActive) {
+        const ms = parseInt(selBoilFps.value) || 500;
+        if (boilInterval) clearInterval(boilInterval);
+        boilInterval = setInterval(() => {
+          boilSeed = (boilSeed % 99) + 1;
+          if (boilTurbulence) boilTurbulence.setAttribute('seed', boilSeed);
+        }, ms);
+      }
+    }
+
+    if (slBoilScale) slBoilScale.addEventListener('input', updateBoilParams);
+    if (selBoilFps) selBoilFps.addEventListener('change', updateBoilParams);
+
+    // ----------------------------------------------------
+    // GLOSSY VINYL SPECULAR SHEEN GENERATOR
+    // Authentic clear-coat resin finish with moving specular glint
+    // ----------------------------------------------------
+    function getGlossyGradient(posPct) {
+      const angle = `${glossAngle}deg`;
+      const tint = '255, 255, 255';
+
+      if (currentGlossStyle === 'ultra') {
+        // Ultra Gloss: Dual sharp specular light reflections (primary sharp beam + secondary bounce)
+        const p1Start = (posPct - 18).toFixed(1);
+        const p1Peak = (posPct - 8).toFixed(1);
+        const p1Cut = (posPct - 2).toFixed(1);
+
+        const p2Start = (posPct + 2).toFixed(1);
+        const p2Peak = (posPct + 9).toFixed(1);
+        const p2Fade = (posPct + 22).toFixed(1);
+
+        return `linear-gradient(${angle},
+          transparent calc(${p1Start}% - 22%),
+          rgba(${tint}, 0.08) ${p1Start}%,
+          rgba(${tint}, 0.95) ${p1Peak}%,
+          rgba(${tint}, 0.22) ${p1Cut}%,
+          transparent ${p1Cut}%,
+          transparent ${p2Start}%,
+          rgba(${tint}, 0.65) ${p2Peak}%,
+          rgba(${tint}, 0.15) ${p2Fade}%,
+          transparent calc(${p2Fade}% + 12%)
+        )`;
+      } else if (currentGlossStyle === 'resin') {
+        // Deep Resin/Epoxy Dome: Soft lustrous curvature glaze
+        const pStart = (posPct - 26).toFixed(1);
+        const pPeak = posPct.toFixed(1);
+        const pFade = (posPct + 26).toFixed(1);
+
+        return `linear-gradient(${angle},
+          transparent calc(${pStart}% - 20%),
+          rgba(${tint}, 0.12) ${pStart}%,
+          rgba(${tint}, 0.88) ${pPeak}%,
+          rgba(${tint}, 0.12) ${pFade}%,
+          transparent calc(${pFade}% + 20%)
+        )`;
+      } else if (currentGlossStyle === 'studio') {
+        // Studio Light Bar: Crisp uniform commercial studio bank light
+        const p1 = (posPct - 9).toFixed(1);
+        const p2 = (posPct + 9).toFixed(1);
+        return `linear-gradient(${angle},
+          transparent calc(${p1}% - 14%),
+          rgba(${tint}, 0.92) ${p1}%,
+          rgba(${tint}, 0.92) ${p2}%,
+          transparent calc(${p2}% + 14%)
+        )`;
+      } else {
+        // Subtle: Gentle satin gloss
+        const p1 = (posPct - 15).toFixed(1);
+        const p2 = (posPct + 15).toFixed(1);
+        return `linear-gradient(${angle},
+          transparent calc(${p1}% - 25%),
+          rgba(${tint}, 0.45) ${posPct.toFixed(1)}%,
+          transparent calc(${p2}% + 25%)
+        )`;
+      }
+    }
+
+    function setGlossStyle(style) {
+      currentGlossStyle = style;
+      const ids = ['btnGlossUltra', 'btnGlossResin', 'btnGlossStudio', 'btnGlossSubtle'];
+      ids.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.toggle('active', id.toLowerCase().includes(style));
+      });
+      updateHighlightPosition(lastNormX, lastNormY);
+      logAction(`GLOSS STYLE: ${style.toUpperCase()}`);
+    }
+
+    function setGlossAngle(deg) {
+      glossAngle = deg;
+      if (slGlossAngle) slGlossAngle.value = deg;
+      if (lblGlossAngle) lblGlossAngle.textContent = `${deg}°`;
+      updateHighlightPosition(lastNormX, lastNormY);
+    }
+
+    function setGlossAnglePreset(deg) {
+      setGlossAngle(deg);
+    }
+
+    // ----------------------------------------------------
+    // SPECULAR HIGHLIGHT POSITION & BELL-CURVE FALLOFF
+    // Glides across the sticker on motion, tilt, and breathe
+    // ----------------------------------------------------
+    function updateHighlightPosition(normX, normY) {
+      lastNormX = normX;
+      lastNormY = normY;
+
+      // Project motion vector onto gloss travel axis (perpendicular to angle)
+      const angleRad = (glossAngle + 90) * (Math.PI / 180);
+      const diagVal = (normX * Math.cos(angleRad) + normY * Math.sin(angleRad));
+      const diagPos = 50 + (diagVal * 48);
+
+      // Bell-curve falloff: subtle fade when tilted far away
+      const normDist = Math.min(1.25, Math.abs(diagVal));
+      const falloff = Math.max(0, 1 - Math.pow(normDist / 1.15, 2.2));
+      const effectiveOpacity = baseOpacity * falloff;
+
+      document.documentElement.style.setProperty('--sheen-opacity', effectiveOpacity.toFixed(3));
+
+      if (stickerGlossGlint) {
+        stickerGlossGlint.style.background = getGlossyGradient(diagPos);
+      }
+
+      if (sheenPosReadout) sheenPosReadout.textContent = `${Math.round(diagPos)}%`;
+      if (opacityReadout) opacityReadout.textContent = `${Math.round(effectiveOpacity * 100)}%`;
+    }
+
+    function setDragBehavior(behavior) {
+      dragBehavior = behavior;
+      document.getElementById('btnSnapSpring').classList.toggle('active', behavior === 'snap');
+      document.getElementById('btnStayPlace').classList.toggle('active', behavior === 'stay');
+    }
+
+    function applySettings() {
+      if (slOpacity) {
+        baseOpacity = slOpacity.value / 100;
+        if (lblGlossOpacity) lblGlossOpacity.textContent = slOpacity.value + '%';
+      }
+      if (selBlend) {
+        const blend = selBlend.value;
+        document.documentElement.style.setProperty('--sheen-blend', blend);
+      }
+      if (slGlossAngle) {
+        glossAngle = parseFloat(slGlossAngle.value);
+        if (lblGlossAngle) lblGlossAngle.textContent = `${glossAngle}°`;
+      }
+      if (lblBreatheDuration && slBreatheDuration) lblBreatheDuration.textContent = slBreatheDuration.value + 's';
+      if (lblBreatheDelay && slBreatheDelay) lblBreatheDelay.textContent = slBreatheDelay.value + 's';
+
+      updateHighlightPosition(lastNormX, lastNormY);
+    }
+
+    if (slGlossAngle) {
+      slGlossAngle.addEventListener('input', () => {
+        setGlossAngle(parseFloat(slGlossAngle.value));
+      });
+    }
+
+    if (slOpacity) {
+      slOpacity.addEventListener('input', applySettings);
+    }
+
+    if (selBlend) {
+      selBlend.addEventListener('change', applySettings);
+    }
+
+    // ----------------------------------------------------
+    // ADAPTIVE PILL & DROP TARGET DETECTION
+    // - Black fill, crisp white text
+    // - Zero outlines, zero drop shadows, zero glows
+    // - Smooth animating width on text changes
+    // ----------------------------------------------------
+    function getHoveredTarget(pointerX, pointerY) {
+      const targets = [targetDock, targetPrj1, targetPrj2];
+      for (const t of targets) {
+        const r = t.getBoundingClientRect();
+        if (pointerX >= r.left && pointerX <= r.right && pointerY >= r.top && pointerY <= r.bottom) {
+          return t;
+        }
+      }
+      return null;
+    }
+
+    function updateAdaptivePill(targetEl, isDraggingNow) {
+      let nextStateClass = '';
+      let nextIcon = '✦';
+      let nextText = isDraggingNow ? 'DROP TO PLACE ON DESK' : 'CLICK: NAVIGATE WORK | DRAG TO APPLY';
+      let nextTargetReadout = 'Workbench Surface';
+
+      if (!targetEl) {
+        nextIcon = '📍';
+        nextText = isDraggingNow ? 'DROP TO PLACE ON DESK' : 'CLICK: NAVIGATE WORK | DRAG TO APPLY';
+        nextTargetReadout = 'Workbench Surface';
+      } else {
+        const targetType = targetEl.getAttribute('data-target');
+        if (targetType === 'dock') {
+          nextStateClass = 'state-dock';
+          nextIcon = '↩';
+          nextText = isDraggingNow ? 'RETURN TO DOCK' : 'CLICK: NAVIGATE WORK (HOME)';
+          nextTargetReadout = 'Home Dock Slot';
+        } else if (targetType === 'project1') {
+          nextStateClass = 'state-project';
+          nextIcon = '⚡';
+          nextText = isDraggingNow ? 'APPLY: WORK + PROJECT_01' : 'ATTACH WORK TO PRJ_01';
+          nextTargetReadout = 'Project 01 (Blender Viewport)';
+        } else if (targetType === 'project2') {
+          nextStateClass = 'state-project';
+          nextIcon = '⚡';
+          nextText = isDraggingNow ? 'APPLY: WORK + PROJECT_02' : 'ATTACH WORK TO PRJ_02';
+          nextTargetReadout = 'Project 02 (Vector System)';
+        }
+      }
+
+      if (targetReadout) targetReadout.textContent = nextTargetReadout;
+
+      // Check if text or icon changed to smoothly animate width
+      if (pillText.textContent !== nextText || pillIcon.textContent !== nextIcon) {
+        const prevWidth = adaptivePill.offsetWidth || 180;
+        adaptivePill.style.width = `${prevWidth}px`;
+
+        pillIcon.textContent = nextIcon;
+        pillText.textContent = nextText;
+        adaptivePill.className = `adaptive-pill ${nextStateClass}`.trim();
+
+        // Calculate natural width with new text
+        adaptivePill.style.width = 'max-content';
+        const targetWidth = adaptivePill.offsetWidth;
+
+        // Reset to prevWidth and trigger smooth CSS transition
+        adaptivePill.style.width = `${prevWidth}px`;
+        void adaptivePill.offsetWidth; // Force reflow
+        adaptivePill.style.width = `${targetWidth}px`;
+      } else {
+        adaptivePill.className = `adaptive-pill ${nextStateClass}`.trim();
+      }
+    }
+
+    // ----------------------------------------------------
+    // CLICK VS DRAG DISCRIMINATOR & TACTILE DRAG ENGINE
+    // ----------------------------------------------------
+    let isPointerActive = false;
+    let isDraggingMode = false;
+    let startPointerX = 0;
+    let startPointerY = 0;
+    let originX = 0;
+    let originY = 0;
+    const DRAG_THRESHOLD = 5; // px
+
+    stickerRoot.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      isPointerActive = true;
+      isDraggingMode = false;
+
+      try { stickerRoot.setPointerCapture(e.pointerId); } catch(err) {}
+
+      startPointerX = e.clientX;
+      startPointerY = e.clientY;
+      originX = currentX;
+      originY = currentY;
+
+      gsap.killTweensOf(stickerBody);
+
+      function onMove(ev) {
+        if (!isPointerActive) return;
+        const dx = ev.clientX - startPointerX;
+        const dy = ev.clientY - startPointerY;
+        const dist = Math.hypot(dx, dy);
+
+        // Threshold crossed: Transform click into DRAG
+        if (!isDraggingMode && dist > DRAG_THRESHOLD) {
+          isDraggingMode = true;
+          document.body.classList.add('is-dragging');
+          
+          // Tactile lift
+          gsap.to(stickerBody, { scale: 1.07, duration: 0.18, ease: "power2.out" });
+          document.documentElement.style.setProperty('--sticker-shadow-y', '36px');
+          document.documentElement.style.setProperty('--sticker-shadow-blur', '46px');
+          stickerStateReadout.textContent = "Dragging Across Workbench";
+
+          // Peel state MUST be inactive while dragging!
+          updatePeelStateVisuals(true);
+        }
+
+        if (isDraggingMode) {
+          const nextX = originX + dx;
+          const nextY = originY + dy;
+          updateRootPosition(nextX, nextY);
+
+          // Detect drop target underneath
+          const hovered = getHoveredTarget(ev.clientX, ev.clientY);
+
+          // Highlight target card visually
+          [targetDock, targetPrj1, targetPrj2].forEach(t => {
+            t.classList.toggle('highlight-hover', t === hovered);
+          });
+
+          // Update floating pill
+          updateAdaptivePill(hovered, true);
+
+          // Specular highlights follow motion
+          const rect = canvasArea.getBoundingClientRect();
+          const normX = Math.max(-1.1, Math.min(1.1, (nextX / (rect.width * 0.4))));
+          const normY = Math.max(-1.1, Math.min(1.1, (nextY / (rect.height * 0.4))));
+          updateHighlightPosition(normX, normY);
+        }
+      }
+
+      function onUp(ev) {
+        if (!isPointerActive) return;
+        isPointerActive = false;
+        document.body.classList.remove('is-dragging');
+
+        try { stickerRoot.releasePointerCapture(ev.pointerId); } catch(err) {}
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+
+        // Reset target visual highlights
+        [targetDock, targetPrj1, targetPrj2].forEach(t => t.classList.remove('highlight-hover'));
+
+        // CASE 1: USER CLICKED (Movement < 5px) -> FAST NAVIGATION!
+        if (!isDraggingMode) {
+          logAction("CLICK EVENT: Quick Navigating to [WORK HOME] Page!");
+          adaptivePill.classList.add('state-click');
+          pillIcon.textContent = '🚀';
+          pillText.textContent = 'NAVIGATING: WORK (HOME)...';
+          stickerStateReadout.textContent = "🚀 Navigating to Home Page";
+
+          // Micro stamp bounce
+          gsap.fromTo(stickerBody, 
+            { scale: 0.95, y: 2 }, 
+            { scale: 1.0, y: 0, duration: 0.25, ease: "back.out(2)" }
+          );
+
+          setTimeout(() => {
+            adaptivePill.classList.remove('state-click');
+            updateAdaptivePill(getHoveredTarget(ev.clientX, ev.clientY), false);
+          }, 900);
+          return;
+        }
+
+        // CASE 2: USER WAS DRAGGING -> DROP EVENT!
+        isDraggingMode = false;
+        gsap.to(stickerBody, { scale: 1.0, duration: 0.2, ease: "power2.out" });
+        document.documentElement.style.setProperty('--sticker-shadow-y', '16px');
+        document.documentElement.style.setProperty('--sticker-shadow-blur', '28px');
+
+        const hovered = getHoveredTarget(ev.clientX, ev.clientY);
+
+        if (hovered) {
+          const targetType = hovered.getAttribute('data-target');
+          currentAppliedTarget = targetType;
+          stuckCard = hovered;
+          stuckAnchorX = currentX;
+          stuckAnchorY = currentY;
+
+          // Tactile Stamp Settle IN PLACE (NO center snap!)
+          gsap.fromTo(stickerBody, 
+            { scale: 0.95 }, 
+            { scale: 1.0, duration: 0.22, ease: "back.out(1.5)" }
+          );
+
+          // Update badges
+          badgeDock.classList.toggle('applied', targetType === 'dock');
+          badgePrj1.classList.toggle('applied', targetType === 'project1');
+          badgePrj2.classList.toggle('applied', targetType === 'project2');
+
+          if (targetType === 'dock') {
+            badgeDock.textContent = "● Seated on Dock";
+            badgePrj1.textContent = "+ Drop to Filter";
+            badgePrj2.textContent = "+ Drop to Attach";
+            logAction(`STUCK ON DOCK: Dropped at (${Math.round(currentX)}, ${Math.round(currentY)}).`);
+            stickerStateReadout.textContent = "Seated on Dock";
+          } else if (targetType === 'project1') {
+            badgePrj1.textContent = "✓ WORK MODIFIER APPLIED";
+            logAction(`STUCK ON PRJ_01: Dropped at (${Math.round(currentX)}, ${Math.round(currentY)}). Work tag applied!`);
+            stickerStateReadout.textContent = "Applied to Project 01";
+          } else if (targetType === 'project2') {
+            badgePrj2.textContent = "✓ WORK MODIFIER APPLIED";
+            logAction(`STUCK ON PRJ_02: Dropped at (${Math.round(currentX)}, ${Math.round(currentY)}). Attached to Portfolio!`);
+            stickerStateReadout.textContent = "Applied to Project 02";
+          }
+
+        } else {
+          // Dropped on Desk Surface
+          stuckCard = null;
+          stuckAnchorX = currentX;
+          stuckAnchorY = currentY;
+          currentAppliedTarget = 'desk';
+          logAction(`DROPPED ON DESK: Free sticker stuck at (${Math.round(currentX)}, ${Math.round(currentY)}).`);
+          stickerStateReadout.textContent = "Placed on Desk Surface";
+          gsap.fromTo(stickerBody, { scale: 0.95 }, { scale: 1.0, duration: 0.22, ease: "back.out(1.5)" });
+        }
+
+        // Update Corner Peel State based on new placement (isDragging = false)
+        updatePeelStateVisuals(false);
+
+        // Settle highlight back to neutral rest (0, 0)
+        if (currentDriver !== 'auto') {
+          gsap.to({ x: lastNormX, y: lastNormY }, {
+            x: 0,
+            y: 0,
+            duration: 0.35,
+            ease: "power2.out",
+            onUpdate: function() {
+              const p = this.targets()[0];
+              updateHighlightPosition(p.x, p.y);
+            }
+          });
+        }
+
+        updateAdaptivePill(hovered, false);
+      }
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    });
+
+    // Hover detection over sticker (Updates HUD pill only, DOES NOT move highlight)
+    stickerRoot.addEventListener('pointerenter', (e) => {
+      const hovered = getHoveredTarget(e.clientX, e.clientY);
+      updateAdaptivePill(hovered, false);
+    });
+
+    // ----------------------------------------------------
+    // AUTOMATED BREATHE DRIVER (PARAMETRIC SPEED, DELAY, CURVE)
+    // ----------------------------------------------------
+    function buildAutoBreatheTimeline() {
+      if (autoBreatheTimeline) {
+        autoBreatheTimeline.kill();
+        autoBreatheTimeline = null;
+      }
+
+      const duration = parseFloat(slBreatheDuration.value) || 1.6;
+      const delay = parseFloat(slBreatheDelay.value) || 0.55;
+      const ease = selBreatheEase ? selBreatheEase.value : 'power2.out';
+      const travelRad = (glossAngle + 90) * (Math.PI / 180);
+
+      const proxy = { val: -1.2 };
+      autoBreatheTimeline = gsap.timeline({ repeat: -1, repeatDelay: delay });
+
+      autoBreatheTimeline.fromTo(proxy, 
+        { val: -1.2 }, 
+        {
+          val: 1.2,
+          duration: duration,
+          ease: ease,
+          onUpdate: () => {
+            const sweepX = proxy.val * Math.cos(travelRad);
+            const sweepY = proxy.val * Math.sin(travelRad);
+            updateHighlightPosition(sweepX, sweepY);
+          }
+        }
+      );
+    }
+
+    function setDriver(driver) {
+      currentDriver = driver;
+      document.getElementById('btnDriverDrag').classList.toggle('active', driver === 'mouse');
+      document.getElementById('btnDriverAuto').classList.toggle('active', driver === 'auto');
+
+      if (autoBreatheTimeline) {
+        autoBreatheTimeline.kill();
+        autoBreatheTimeline = null;
+      }
+
+      if (driver === 'auto') {
+        stickerStateReadout.textContent = "Auto Breathe: Sweeping Active";
+        buildAutoBreatheTimeline();
+        logAction(`AUTO BREATHE: ${slBreatheDuration.value}s sweep, ${slBreatheDelay.value}s pause (${selBreatheEase.value})`);
+      } else {
+        stickerStateReadout.textContent = "Drag Motion Only (Idle Still)";
+        updateHighlightPosition(0, 0);
+        logAction("DRIVER SET: Drag Motion Only. Highlight stays still when idle.");
+      }
+    }
+
+    [slBreatheDuration, slBreatheDelay, selBreatheEase].forEach(el => {
+      if (el) {
+        el.addEventListener('input', () => {
+          if (lblBreatheDuration && slBreatheDuration) lblBreatheDuration.textContent = slBreatheDuration.value + 's';
+          if (lblBreatheDelay && slBreatheDelay) lblBreatheDelay.textContent = slBreatheDelay.value + 's';
+          if (currentDriver === 'auto') {
+            buildAutoBreatheTimeline();
+          }
+        });
+      }
+    });
+
+    // Subtle pointer tilt when hovering over canvas
+    canvasArea.addEventListener('pointermove', (e) => {
+      if (currentDriver !== 'mouse' || isDraggingMode) return;
+      const rect = canvasArea.getBoundingClientRect();
+      const normX = ((e.clientX - rect.left) / rect.width - 0.5) * 1.8;
+      const normY = ((e.clientY - rect.top) / rect.height - 0.5) * 1.8;
+      updateHighlightPosition(normX, normY);
+    });
+
+    // ----------------------------------------------------
+    // MOBILE GYROSCOPE (DeviceOrientation API)
+    // ----------------------------------------------------
+    function enableMobileGyro() {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(permissionState => {
+            if (permissionState === 'granted') {
+              bindGyroEvents();
+            } else {
+              alert('Gyroscope permission denied.');
+            }
+          })
+          .catch(console.error);
+      } else {
+        bindGyroEvents();
+      }
+    }
+
+    function bindGyroEvents() {
+      currentDriver = 'gyro';
+      stickerStateReadout.textContent = "📱 Mobile Gyroscope Active";
+      const btn = document.getElementById('btnRequestGyro');
+      btn.style.background = '#4ade80';
+      btn.style.color = '#000';
+      btn.textContent = "✓ Gyroscope Connected (Tilt Phone)";
+
+      window.addEventListener('deviceorientation', (e) => {
+        if (!e.gamma && !e.beta) return;
+        const normX = Math.max(-1.1, Math.min(1.1, e.gamma / 30));
+        const normY = Math.max(-1.1, Math.min(1.1, (e.beta - 38) / 25));
+        updateHighlightPosition(normX, normY);
+      });
+    }
+
+    // ----------------------------------------------------
+    // DESKTOP VIRTUAL GYROSCOPE JOYSTICK
+    // ----------------------------------------------------
+    const gyroTrack = document.getElementById('gyroTrack');
+    const gyroPuck = document.getElementById('gyroPuck');
+    let isDraggingPuck = false;
+
+    gyroTrack.addEventListener('pointerdown', (e) => {
+      isDraggingPuck = true;
+      currentDriver = 'puck';
+
+      function onMove(ev) {
+        if (!isDraggingPuck) return;
+        const rect = gyroTrack.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        const maxRadius = 38;
+        let dx = ev.clientX - centerX;
+        let dy = ev.clientY - centerY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > maxRadius) {
+          dx = (dx / dist) * maxRadius;
+          dy = (dy / dist) * maxRadius;
+        }
+
+        gyroPuck.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+        const normX = dx / maxRadius;
+        const normY = dy / maxRadius;
+
+        updateHighlightPosition(normX, normY);
+      }
+
+      function onUp() {
+        isDraggingPuck = false;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+
+        gsap.to(gyroPuck, {
+          x: 0,
+          y: 0,
+          duration: 0.35,
+          ease: "elastic.out(1, 0.5)"
+        });
+        updateHighlightPosition(0, 0);
+      }
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+
+    // Initialize Default State
+    applySettings();
+    updateHighlightPosition(0, 0);
+
+    // Initialize Corner Peel Affordance & Bind Offset Sliders Immediately
+    [slPeelX, slPeelY, slPeelScale, slPeelRot].forEach(el => {
+      if (el) el.addEventListener('input', updatePeelOffsets);
+    });
+    updatePeelOffsets();
+    updatePeelStateVisuals();
+
+    // Initial position on Dock Slot
+    window.addEventListener('load', () => {
+      const canvasRect = canvasArea.getBoundingClientRect();
+      const dockRect = targetDock.getBoundingClientRect();
+      const initX = (dockRect.left - canvasRect.left) + (dockRect.width / 2) - (220 / 2);
+      const initY = (dockRect.top - canvasRect.top) + (dockRect.height / 2) - (230 / 2);
+      updateRootPosition(initX, initY);
+      stuckCard = targetDock;
+      stuckAnchorX = initX;
+      stuckAnchorY = initY;
+      updateAdaptivePill(targetDock, false);
+
+      initCardResizeHandles();
+    });
+  </script>
+</body>
+</html>
