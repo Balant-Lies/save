@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Sticker Gloss Lab — Backlight & Exposure Test</title>
+  <meta name="description" content="Realistic glossy sticker with backlight screen bleed, diffuse exposure controls, physics-based specular, Fresnel, and environment reflection.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #08080c;
+      --bg2: #101018;
+      --panel-bg: rgba(14,14,24,0.92);
+      --border: rgba(255,255,255,0.05);
+      --border-hi: rgba(140,110,255,0.3);
+      --text: #ddd8ee;
+      --text2: #807a96;
+      --text3: #4e4968;
+      --accent: #8b6cff;
+      --glow: rgba(139,108,255,0.2);
+      --warm: #ff7a5c;
+      --green: #4ade80;
+      --sans: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .layout { display: flex; height: 100vh; }
+
+    /* ── VIEWPORT ── */
+    .vp {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      background: var(--vp-bg, #ffffff);
+      transition: background 0.25s ease;
+    }
+
+    .vp::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--vp-grid, repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(0,0,0,0.035) 59px, rgba(0,0,0,0.035) 60px),
+        repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(0,0,0,0.035) 59px, rgba(0,0,0,0.035) 60px));
+      pointer-events: none;
+      opacity: var(--vp-grid-opacity, 1);
+      transition: opacity 0.25s ease;
+    }
+
+    /* Light Viewport Theme (White/Light Desk Mode) */
+    .vp.vp-light .chip,
+    .vp.vp-light .perf-chip {
+      background: rgba(255, 255, 255, 0.92);
+      border-color: rgba(0, 0, 0, 0.12);
+      color: #3b354d;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+    }
+
+    .vp.vp-light .joy {
+      background: rgba(255, 255, 255, 0.92);
+      border-color: rgba(0, 0, 0, 0.14);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    .vp.vp-light .joy::before,
+    .vp.vp-light .joy::after {
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    .vp.vp-light .joy-label {
+      color: #6d6682;
+    }
+
+    .vp.vp-light .shadow-plane {
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0.22) 0%, transparent 70%);
+      filter: blur(14px);
+    }
+
+    /* ── STICKER 3D ── */
+    .scene {
+      perspective: 900px;
+      perspective-origin: 50% 50%;
+      width: 340px;
+      height: 360px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      animation: fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px) scale(0.96); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .body3d {
+      position: relative;
+      width: 300px;
+      height: 320px;
+      transform-style: preserve-3d;
+      will-change: transform;
+      cursor: grab;
+    }
+
+    .body3d:active { cursor: grabbing; }
+
+    .sticker-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
+      z-index: 0;
+      filter: brightness(var(--sticker-bright, 1)) contrast(var(--sticker-contrast, 1)) saturate(var(--sticker-sat, 1.3));
+      transition: filter 0.05s linear;
+    }
+
+    /* Backlight glowing screen behind sticker */
+    .backlight-screen {
+      position: absolute;
+      width: 330px;
+      height: 350px;
+      border-radius: 36px;
+      background: radial-gradient(ellipse at center, rgba(144, 196, 255, 0.42) 0%, rgba(144, 196, 255, 0.12) 50%, transparent 75%);
+      filter: blur(38px);
+      z-index: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, filter 0.2s ease;
+    }
+
+    /* Drop shadow rendered separately so gloss layers don't affect it */
+    .shadow-plane {
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 65%;
+      height: 30px;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, transparent 70%);
+      filter: blur(16px);
+      z-index: 0;
+      transition: opacity 0.3s, transform 0.3s;
+    }
+
+    /* ── GLOSS LAYERS (masked to sticker shape) ── */
+    .gloss-mask {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      -webkit-mask-image: url('svg/workstickerpng.png');
+      -webkit-mask-size: contain;
+      -webkit-mask-repeat: no-repeat;
+      -webkit-mask-position: center;
+      mask-image: url('svg/workstickerpng.png');
+      mask-size: contain;
+      mask-repeat: no-repeat;
+      mask-position: center;
+    }
+
+    /* Layer 0: Directional shadow — diffuse ambient darkening opposite the light source */
+    .diffuse-shadow {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      mix-blend-mode: multiply;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+      will-change: background, opacity;
+    }
+
+    /* Layer 1: Specular hotspot — the main "light reflection blob" */
+    .specular-hotspot {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      mix-blend-mode: screen;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 2;
+      will-change: background, opacity;
+    }
+
+    /* Layer 2: Fresnel rim — edges glow brighter at shallow angles */
+    .fresnel-rim {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      mix-blend-mode: screen;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 3;
+      will-change: background, opacity;
+    }
+
+    /* Layer 3: Environment reflection — soft ambient light pickup */
+    .env-reflect {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      mix-blend-mode: overlay;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 4;
+      will-change: background, opacity;
+    }
+
+    /* Layer 4: Image washout — vinyl gets milky white at steep angles */
+    .washout {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 1);
+      mix-blend-mode: overlay;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 5;
+      will-change: opacity;
+    }
+
+    /* Layer 5: Iridescence — subtle color shift at edges */
+    .iridescence {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      mix-blend-mode: color-dodge;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 6;
+      will-change: background, opacity;
+    }
+
+    /* ── STATUS BAR ── */
+    .status-row {
+      margin-top: 28px;
+      display: flex;
+      gap: 12px;
+      z-index: 1;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text2);
+      backdrop-filter: blur(10px);
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--text3);
+      flex-shrink: 0;
+    }
+    .dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot.warn { background: var(--warm); box-shadow: 0 0 6px var(--warm); }
+
+    /* ── JOYSTICK ── */
+    .joy {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      width: 110px;
+      height: 110px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      backdrop-filter: blur(14px);
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+    }
+
+    .joy::before { content: ''; position: absolute; width: 1px; height: 80%; background: rgba(255,255,255,0.04); }
+    .joy::after { content: ''; position: absolute; width: 80%; height: 1px; background: rgba(255,255,255,0.04); }
+
+    .joy-knob {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 14px var(--glow), 0 2px 6px rgba(0,0,0,0.3);
+      pointer-events: none;
+      position: absolute;
+      transform: translate(-50%, -50%);
+      left: 50%; top: 50%;
+    }
+
+    .joy-label {
+      position: absolute;
+      bottom: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--mono);
+      font-size: 8px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+    }
+
+    .joy.hidden { display: none; }
+
+    /* ── PERF ── */
+    .perf {
+      position: absolute;
+      top: 14px; left: 14px;
+      display: flex;
+      gap: 6px;
+      z-index: 10;
+    }
+
+    .perf-chip {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text3);
+      padding: 3px 8px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      backdrop-filter: blur(10px);
+    }
+
+    /* ── PANEL ── */
+    .panel {
+      width: 330px;
+      min-width: 330px;
+      height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      padding: 18px 16px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.07) transparent;
+    }
+
+    .panel::-webkit-scrollbar { width: 4px; }
+    .panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+    .panel-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 6px;
+    }
+
+    .panel-hdr h1 { font-size: 13px; font-weight: 700; letter-spacing: -0.02em; }
+    .badge { font-family: var(--mono); font-size: 8px; color: var(--accent); background: rgba(139,108,255,0.1); border: 1px solid rgba(139,108,255,0.2); padding: 2px 7px; border-radius: 100px; }
+
+    .sec {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      backdrop-filter: blur(6px);
+      animation: fadeUp 0.45s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    .sec:nth-child(2) { animation-delay: 0.04s; }
+    .sec:nth-child(3) { animation-delay: 0.08s; }
+    .sec:nth-child(4) { animation-delay: 0.12s; }
+    .sec:nth-child(5) { animation-delay: 0.16s; }
+    .sec:nth-child(6) { animation-delay: 0.2s; }
+    .sec:nth-child(7) { animation-delay: 0.24s; }
+    .sec:nth-child(8) { animation-delay: 0.28s; }
+
+    .sec-title {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text3);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 28px;
+    }
+
+    .lbl { font-size: 11px; color: var(--text2); white-space: nowrap; flex-shrink: 0; }
+    .val { font-family: var(--mono); font-size: 10px; color: var(--accent); min-width: 36px; text-align: right; flex-shrink: 0; }
+
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none;
+      flex: 1; height: 3px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 2px;
+      outline: none; cursor: pointer;
+      min-width: 70px;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--glow);
+      cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.12);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--glow);
+      cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.12);
+    }
+
+    .tog {
+      width: 34px; height: 18px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 10px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.15s;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .tog.on { background: var(--accent); border-color: transparent; }
+    .tog::after {
+      content: '';
+      position: absolute;
+      width: 12px; height: 12px;
+      background: #fff;
+      border-radius: 50%;
+      top: 2px; left: 2px;
+      transition: transform 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .tog.on::after { transform: translateX(16px); }
+
+    select {
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(30,30,50,0.5);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 10px;
+      cursor: pointer;
+      outline: none;
+    }
+    select:focus { border-color: var(--border-hi); }
+    select option { background: var(--bg2); }
+
+    .btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(30,30,50,0.5);
+      color: var(--text2);
+      font-family: var(--sans);
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: rgba(139,108,255,0.1); border-color: var(--border-hi); color: var(--text); }
+    .btn.pri { background: rgba(139,108,255,0.12); border-color: rgba(139,108,255,0.25); color: var(--accent); }
+    .btn.danger { color: var(--warm); border-color: rgba(255,122,92,0.18); }
+    .btn.danger:hover { background: rgba(255,122,92,0.08); }
+
+    .readouts {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 5px;
+    }
+
+    .ro {
+      background: rgba(30,30,50,0.5);
+      border-radius: 6px;
+      padding: 7px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .ro-lbl { font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); }
+    .ro-val { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); }
+
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .vp { height: 48vh; min-height: 280px; }
+      .panel { width: 100%; min-width: unset; height: 52vh; border-left: none; border-top: 1px solid var(--border); }
+      .scene { width: 260px; height: 280px; }
+      .body3d { width: 230px; height: 250px; }
+      .joy { width: 80px; height: 80px; }
+      .joy-knob { width: 22px; height: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="vp" id="vp">
+    <div class="perf">
+      <div class="perf-chip" id="pFps">-- fps</div>
+      <div class="perf-chip" id="pDraw">0 draws</div>
+    </div>
+
+    <div class="scene" id="scene">
+      <div class="backlight-screen" id="backlightScreen"></div>
+      <div class="body3d" id="body3d">
+        <div class="shadow-plane" id="shadow"></div>
+
+        <!-- All art & gloss layers share one mask container for true pixel blend modes -->
+        <div class="gloss-mask">
+          <img class="sticker-img" id="stickerImg" src="svg/workstickerpng.png" alt="Work Page Sticker" draggable="false">
+          <div class="diffuse-shadow" id="lDiffuseShadow"></div>
+          <div class="specular-hotspot" id="lSpecular"></div>
+          <div class="fresnel-rim" id="lFresnel"></div>
+          <div class="env-reflect" id="lEnv"></div>
+          <div class="washout" id="lWashout"></div>
+          <div class="iridescence" id="lIridescence"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-row">
+      <div class="chip"><span class="dot" id="gyroDot"></span><span id="gyroTxt">Gyro: Checking…</span></div>
+      <div class="chip"><span class="dot on" id="inputDot"></span><span id="inputTxt">Input: Mouse</span></div>
+      <div class="chip"><span class="dot on"></span><span id="modeTxt">Backlit PBR Gloss</span></div>
+    </div>
+
+    <div class="joy" id="joy">
+      <div class="joy-knob" id="joyKnob"></div>
+      <div class="joy-label">Tilt Sim</div>
+    </div>
+  </div>
+
+  <!-- ── PANEL ── -->
+  <div class="panel" id="panel">
+    <div class="panel-hdr">
+      <h1>Sticker Lab</h1>
+      <span class="badge" style="background: rgba(139,108,255,0.25); color: #c4b5fd; border: 1px solid rgba(139,108,255,0.4);">BACKLIT</span>
+    </div>
+
+    <!-- BACKLIGHT & EXPOSURE TEST (NEW EXPERIMENTAL SECTION) -->
+    <div class="sec" style="border-left: 2px solid var(--accent); padding-left: 10px; background: rgba(139,108,255,0.06); border-radius: 4px;">
+      <div class="sec-title" style="color: #c4b5fd;">💡 Backlight & Exposure Test</div>
+      <div class="row">
+        <span class="lbl">Sticker Brightness</span>
+        <input type="range" id="rStickerBright" min="0.2" max="1.3" step="0.02" value="1.00">
+        <span class="val" id="vStickerBright">1.00×</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Sticker Contrast</span>
+        <input type="range" id="rStickerContrast" min="0.5" max="1.8" step="0.02" value="1.00">
+        <span class="val" id="vStickerContrast">1.00×</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Sticker Saturation</span>
+        <input type="range" id="rStickerSat" min="0.5" max="2.0" step="0.05" value="1.30">
+        <span class="val" id="vStickerSat">1.30×</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Backlight Glow</span>
+        <div class="tog" id="tBacklight"></div>
+      </div>
+      <div class="row">
+        <span class="lbl">Backlight Intensity</span>
+        <input type="range" id="rBacklightInt" min="0" max="1" step="0.02" value="0.60">
+        <span class="val" id="vBacklightInt">0.60</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Backlight Blur</span>
+        <input type="range" id="rBacklightBlur" min="10" max="90" step="2" value="38">
+        <span class="val" id="vBacklightBlur">38px</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Backlight Color</span>
+        <select id="sBacklightColor">
+          <option value="cool" selected>Cool Display (#90c4ff)</option>
+          <option value="white">Pure White (#ffffff)</option>
+          <option value="warm">Warm Ambience (#ffe0b2)</option>
+          <option value="cyan">Cyber Cyan (#00e5ff)</option>
+          <option value="neon">Neon Magenta (#ff2a85)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- VIEWPORT ENVIRONMENT & BACKGROUND -->
+    <div class="sec" style="border-left: 2px solid #4ade80; padding-left: 10px; background: rgba(74,222,128,0.05); border-radius: 4px;">
+      <div class="sec-title" style="color: #4ade80;">🖼 Viewport Background</div>
+      <div class="row">
+        <span class="lbl">Background Preset</span>
+        <select id="sBgPreset">
+          <option value="white" selected>White Desk (#ffffff)</option>
+          <option value="lightgray">Light Gray Desk (#f4f4f7)</option>
+          <option value="dark">Studio Dark (#08080c)</option>
+          <option value="charcoal">Charcoal Desk (#16161f)</option>
+          <option value="custom">Custom Color…</option>
+        </select>
+      </div>
+      <div class="row" id="rowCustomColor" style="display: none;">
+        <span class="lbl">Custom Color</span>
+        <input type="color" id="pickerBg" value="#ffffff" style="background: none; border: 1px solid var(--border); border-radius: 4px; height: 26px; width: 44px; cursor: pointer; padding: 0;">
+      </div>
+      <div class="row">
+        <span class="lbl">Background Grid Lines</span>
+        <div class="tog on" id="tGridLines"></div>
+      </div>
+    </div>
+
+    <!-- READOUT -->
+    <div class="sec">
+      <div class="sec-title">📊 Live Readout</div>
+      <div class="readouts">
+        <div class="ro"><span class="ro-lbl">Tilt X</span><span class="ro-val" id="roTX">0.0°</span></div>
+        <div class="ro"><span class="ro-lbl">Tilt Y</span><span class="ro-val" id="roTY">0.0°</span></div>
+        <div class="ro"><span class="ro-lbl">Source</span><span class="ro-val" id="roSrc">—</span></div>
+        <div class="ro"><span class="ro-lbl">Spec X</span><span class="ro-val" id="roSX">50%</span></div>
+        <div class="ro"><span class="ro-lbl">Spec Y</span><span class="ro-val" id="roSY">50%</span></div>
+        <div class="ro"><span class="ro-lbl">Fresnel</span><span class="ro-val" id="roFr">0.00</span></div>
+      </div>
+    </div>
+
+    <!-- TILT -->
+    <div class="sec">
+      <div class="sec-title">🎯 3D Tilt</div>
+      <div class="row"><span class="lbl">Enable Tilt</span><div class="tog" id="tTilt"></div></div>
+      <div class="row"><span class="lbl">Max Angle (°)</span><input type="range" id="rMaxTilt" min="0" max="45" step="0.5" value="20"><span class="val" id="vMaxTilt">20°</span></div>
+      <div class="row"><span class="lbl">X Multiplier</span><input type="range" id="rMultX" min="0" max="3" step="0.05" value="1"><span class="val" id="vMultX">1.0×</span></div>
+      <div class="row"><span class="lbl">Y Multiplier</span><input type="range" id="rMultY" min="0" max="3" step="0.05" value="1"><span class="val" id="vMultY">1.0×</span></div>
+      <div class="row"><span class="lbl">Invert X</span><div class="tog" id="tInvX"></div></div>
+      <div class="row"><span class="lbl">Invert Y</span><div class="tog" id="tInvY"></div></div>
+      <div class="row"><span class="lbl">Lock X</span><div class="tog" id="tLockX"></div></div>
+      <div class="row"><span class="lbl">Lock Y</span><div class="tog" id="tLockY"></div></div>
+      <div class="row"><span class="lbl">Smoothing</span><input type="range" id="rSmooth" min="0.02" max="0.5" step="0.01" value="0.1"><span class="val" id="vSmooth">0.10</span></div>
+      <div class="row"><span class="lbl">Perspective</span><input type="range" id="rPersp" min="200" max="2000" step="25" value="875"><span class="val" id="vPersp">875</span></div>
+    </div>
+
+    <!-- SPECULAR HOTSPOT -->
+    <div class="sec">
+      <div class="sec-title">💡 Specular Hotspot</div>
+      <div class="row"><span class="lbl">Enable</span><div class="tog on" id="tSpec"></div></div>
+      <div class="row"><span class="lbl">Intensity</span><input type="range" id="rSpecInt" min="0" max="1" step="0.01" value="0.29"><span class="val" id="vSpecInt">0.29</span></div>
+      <div class="row"><span class="lbl">Size (%)</span><input type="range" id="rSpecSize" min="10" max="80" step="1" value="80"><span class="val" id="vSpecSize">80</span></div>
+      <div class="row"><span class="lbl">Falloff Softness</span><input type="range" id="rSpecFall" min="0.1" max="1" step="0.01" value="1"><span class="val" id="vSpecFall">1.00</span></div>
+      <div class="row"><span class="lbl">Travel Range</span><input type="range" id="rSpecTravel" min="10" max="60" step="1" value="39"><span class="val" id="vSpecTravel">39</span></div>
+      <div class="row">
+        <span class="lbl">Light Color</span>
+        <select id="sSpecColor">
+          <option value="warm">Warm White</option>
+          <option value="cool">Cool White</option>
+          <option value="neutral">Neutral</option>
+          <option value="golden" selected>Golden</option>
+        </select>
+      </div>
+      <div class="row">
+        <span class="lbl">Blend Mode</span>
+        <select id="sSpecBlend">
+          <option value="screen" selected>Screen (Bright Additive)</option>
+          <option value="overlay">Overlay (Rich Contrast)</option>
+          <option value="color-dodge">Color Dodge (Intense Glow)</option>
+          <option value="soft-light">Soft Light (Subtle Sheen)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- DIRECTIONAL SHADING (GLOBAL DARKNESS) -->
+    <div class="sec" style="border-left: 2px solid #6366f1; padding-left: 10px; background: rgba(99,102,241,0.06); border-radius: 4px;">
+      <div class="sec-title" style="color: #818cf8;">🌘 Directional Shading (Global Darkness)</div>
+      <div class="row"><span class="lbl">Enable Ambient Shading</span><div class="tog on" id="tDiffuse"></div></div>
+      <div class="row"><span class="lbl">Shadow Intensity</span><input type="range" id="rDiffuseInt" min="0" max="0.8" step="0.01" value="0.35"><span class="val" id="vDiffuseInt">0.35</span></div>
+      <div class="row"><span class="lbl">Spread / Softness</span><input type="range" id="rDiffuseSoft" min="20" max="95" step="1" value="65"><span class="val" id="vDiffuseSoft">65%</span></div>
+      <div class="row">
+        <span class="lbl">Shadow Tone</span>
+        <select id="sDiffuseTone">
+          <option value="navy" selected>Deep Navy Ambient (rgb 0,10,25)</option>
+          <option value="neutral">Neutral Black (rgb 0,0,0)</option>
+          <option value="warm">Warm Umber (rgb 25,12,5)</option>
+        </select>
+      </div>
+      <div class="row">
+        <span class="lbl">Blend Mode</span>
+        <select id="sDiffuseBlend">
+          <option value="multiply" selected>Multiply (Natural Shadow)</option>
+          <option value="overlay">Overlay (Punchy Contrast)</option>
+          <option value="darken">Darken</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- FRESNEL -->
+    <div class="sec">
+      <div class="sec-title">🌊 Fresnel Rim</div>
+      <div class="row"><span class="lbl">Enable</span><div class="tog on" id="tFresnel"></div></div>
+      <div class="row"><span class="lbl">Intensity</span><input type="range" id="rFrInt" min="0" max="1" step="0.01" value="0.62"><span class="val" id="vFrInt">0.62</span></div>
+      <div class="row"><span class="lbl">Exponent (sharpness)</span><input type="range" id="rFrExp" min="1" max="8" step="0.1" value="6.4"><span class="val" id="vFrExp">6.4</span></div>
+      <div class="row"><span class="lbl">Rim Width (%)</span><input type="range" id="rFrWidth" min="5" max="50" step="1" value="50"><span class="val" id="vFrWidth">50</span></div>
+    </div>
+
+    <!-- ENVIRONMENT -->
+    <div class="sec">
+      <div class="sec-title">🌤 Environment Reflection</div>
+      <div class="row"><span class="lbl">Enable</span><div class="tog on" id="tEnv"></div></div>
+      <div class="row"><span class="lbl">Intensity</span><input type="range" id="rEnvInt" min="0" max="1" step="0.01" value="0.25"><span class="val" id="vEnvInt">0.25</span></div>
+      <div class="row"><span class="lbl">Blur</span><input type="range" id="rEnvBlur" min="0" max="40" step="1" value="12"><span class="val" id="vEnvBlur">12</span></div>
+      <div class="row">
+        <span class="lbl">Env Preset</span>
+        <select id="sEnvPreset">
+          <option value="studio" selected>Studio</option>
+          <option value="window">Window Light</option>
+          <option value="outdoor">Outdoor</option>
+          <option value="neon">Neon</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- WASHOUT + IRIDESCENCE -->
+    <div class="sec">
+      <div class="sec-title">✨ Surface Effects</div>
+      <div class="row"><span class="lbl">Washout at Steep Angles</span><div class="tog on" id="tWash"></div></div>
+      <div class="row"><span class="lbl">Washout Strength</span><input type="range" id="rWashStr" min="0" max="0.5" step="0.01" value="0.10"><span class="val" id="vWashStr">0.10</span></div>
+      <div class="row"><span class="lbl">Iridescence</span><div class="tog" id="tIrid"></div></div>
+      <div class="row"><span class="lbl">Iridescence Strength</span><input type="range" id="rIridStr" min="0" max="0.5" step="0.01" value="0.08"><span class="val" id="vIridStr">0.08</span></div>
+    </div>
+
+    <!-- INPUT SOURCE -->
+    <div class="sec">
+      <div class="sec-title">📱 Input Source</div>
+      <div class="row">
+        <span class="lbl">Source</span>
+        <select id="sInput">
+          <option value="auto">Auto (Gyro → Mouse)</option>
+          <option value="mouse">Mouse Only</option>
+          <option value="gyro">Gyroscope Only</option>
+          <option value="sim" selected>Simulator Only</option>
+        </select>
+      </div>
+      <div class="row"><span class="lbl">Gyro Sensitivity</span><input type="range" id="rGyroSens" min="0.1" max="5" step="0.1" value="1.5"><span class="val" id="vGyroSens">1.5×</span></div>
+      <div class="row"><span class="lbl">Mouse Sensitivity</span><input type="range" id="rMouseSens" min="0.1" max="5" step="0.1" value="1"><span class="val" id="vMouseSens">1.0×</span></div>
+      <div class="row"><span class="lbl">Show Joystick</span><div class="tog on" id="tJoy"></div></div>
+    </div>
+
+    <!-- IDLE -->
+    <div class="sec">
+      <div class="sec-title">🔄 Idle Animation</div>
+      <div class="row"><span class="lbl">Enable</span><div class="tog on" id="tIdle"></div></div>
+      <div class="row"><span class="lbl">Speed</span><input type="range" id="rIdleSpd" min="0.1" max="4" step="0.1" value="0.8"><span class="val" id="vIdleSpd">0.8×</span></div>
+      <div class="row"><span class="lbl">Amplitude</span><input type="range" id="rIdleAmp" min="0.05" max="1" step="0.01" value="0.35"><span class="val" id="vIdleAmp">0.35</span></div>
+      <div class="row"><span class="lbl">Idle Tilt</span><div class="tog" id="tIdleTilt"></div></div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="sec">
+      <div class="sec-title">⚡ Actions</div>
+      <div class="row" style="flex-wrap:wrap;gap:5px;">
+        <button class="btn pri" id="btnReset">Reset All</button>
+        <button class="btn" id="btnExport">Export JSON</button>
+        <button class="btn danger" id="btnKill">Kill Tilt</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =========================================================
+// PHYSICALLY-BASED GLOSSY VINYL RENDERER
+// No linear bars. Real optics: specular hotspot, Fresnel,
+// environment reflection, washout, iridescence.
+// =========================================================
+(function() {
+  'use strict';
+
+  // ── DOM ──
+  const vp       = document.getElementById('vp');
+  const scene    = document.getElementById('scene');
+  const body3d   = document.getElementById('body3d');
+  const shadow   = document.getElementById('shadow');
+  const lDiffuse = document.getElementById('lDiffuseShadow');
+  const lSpec    = document.getElementById('lSpecular');
+  const lFresnel = document.getElementById('lFresnel');
+  const lEnv     = document.getElementById('lEnv');
+  const lWash    = document.getElementById('lWashout');
+  const lIrid    = document.getElementById('lIridescence');
+  const joy      = document.getElementById('joy');
+  const joyKnob  = document.getElementById('joyKnob');
+
+  const roTX  = document.getElementById('roTX');
+  const roTY  = document.getElementById('roTY');
+  const roSrc = document.getElementById('roSrc');
+  const roSX  = document.getElementById('roSX');
+  const roSY  = document.getElementById('roSY');
+  const roFr  = document.getElementById('roFr');
+  const pFps  = document.getElementById('pFps');
+  const pDraw = document.getElementById('pDraw');
+  const gyroDot  = document.getElementById('gyroDot');
+  const gyroTxt  = document.getElementById('gyroTxt');
+  const inputDot = document.getElementById('inputDot');
+  const inputTxt = document.getElementById('inputTxt');
+  const modeTxt  = document.getElementById('modeTxt');
+
+  // ── LIGHT COLOR PRESETS ──
+  const LIGHT_COLORS = {
+    warm:    { core: [255, 248, 235], edge: [255, 235, 210] },
+    cool:    { core: [235, 240, 255], edge: [210, 220, 255] },
+    neutral: { core: [255, 255, 255], edge: [240, 240, 240] },
+    golden:  { core: [255, 230, 180], edge: [255, 210, 140] }
+  };
+
+  // ── ENV PRESETS — multi-stop radial/linear combos ──
+  const ENV_PRESETS = {
+    studio: (nx, ny) => {
+      // Soft overhead box light — moves with tilt
+      const cx = 50 + nx * 20;
+      const cy = 30 + ny * 15;
+      return `radial-gradient(ellipse 80% 50% at ${cx}% ${cy}%, rgba(255,252,245,0.35) 0%, rgba(255,252,245,0.08) 40%, transparent 70%)`;
+    },
+    window: (nx, ny) => {
+      // Directional window light from upper-right
+      const cx = 70 + nx * 15;
+      const cy = 25 + ny * 10;
+      return `radial-gradient(ellipse 60% 90% at ${cx}% ${cy}%, rgba(200,220,255,0.3) 0%, rgba(200,220,255,0.05) 50%, transparent 80%)`;
+    },
+    outdoor: (nx, ny) => {
+      // Broad sky light + ground bounce
+      const cy = 35 + ny * 15;
+      return `linear-gradient(180deg, rgba(160,200,255,0.2) 0%, transparent ${cy}%, rgba(180,160,130,0.08) 100%)`;
+    },
+    neon: (nx, ny) => {
+      const cx = 50 + nx * 25;
+      const cy = 50 + ny * 25;
+      return `radial-gradient(ellipse 50% 50% at ${cx}% ${cy}%, rgba(255,100,200,0.2) 0%, rgba(100,100,255,0.1) 40%, transparent 70%)`;
+    }
+  };
+
+  // ── STATE ──
+  const S = {
+    tiltOn: false,
+    maxTilt: 20,
+    multX: 1, multY: 1,
+    invX: false, invY: false,
+    lockX: false, lockY: false,
+    smooth: 0.1,
+    persp: 875,
+
+    specOn: true,
+    specInt: 0.29,
+    specSize: 80,
+    specFall: 1,
+    specTravel: 39,
+    specColor: 'golden',
+    specBlend: 'screen',
+
+    diffuseOn: true,
+    diffuseInt: 0.35,
+    diffuseSoft: 65,
+    diffuseTone: 'navy',
+    diffuseBlend: 'multiply',
+
+    fresnelOn: true,
+    frInt: 0.62,
+    frExp: 6.4,
+    frWidth: 50,
+
+    envOn: true,
+    envInt: 0.25,
+    envBlur: 12,
+    envPreset: 'studio',
+
+    washOn: true,
+    washStr: 0.10,
+
+    iridOn: false,
+    iridStr: 0.08,
+
+    // Backlight & Exposure Test
+    stickerBright: 1.0,
+    stickerContrast: 1.0,
+    stickerSat: 1.30,
+    backlightOn: false,
+    backlightInt: 0.60,
+    backlightBlur: 38,
+    backlightColor: 'cool',
+
+    // Viewport Background
+    bgPreset: 'white',
+    customBgColor: '#ffffff',
+    gridLinesOn: true,
+
+    inputSrc: 'sim',
+    gyroSens: 1.5,
+    mouseSens: 1,
+    showJoy: true,
+
+    idleOn: true,
+    idleSpd: 0.8,
+    idleAmp: 0.35,
+    idleTilt: false,
+
+    // Runtime
+    gyroOK: false,
+    gyroPerm: 'unknown',
+    activeIn: 'none',
+
+    // Lerp targets
+    tgtTX: 0, tgtTY: 0,
+    curTX: 0, curTY: 0,
+    // Normalized input position [-1..1]
+    tgtNX: 0, tgtNY: 0,
+    curNX: 0, curNY: 0,
+
+    frames: 0, draws: 0, fps: 0, fpsT: performance.now()
+  };
+
+  // ── PHYSICS: FRESNEL APPROXIMATION ──
+  // Real Fresnel: F(θ) = F0 + (1−F0)(1−cosθ)^5
+  // For vinyl: F0 ≈ 0.04, but we simplify for visual fidelity
+  function fresnelFactor(tiltX, tiltY, maxTilt) {
+    // How "tilted away" is the surface from the viewer?
+    // At 0° tilt: viewer sees surface head-on → low Fresnel
+    // At maxTilt: surface at glancing angle → high Fresnel
+    const tiltMag = Math.sqrt(tiltX * tiltX + tiltY * tiltY);
+    const normAngle = Math.min(tiltMag / (maxTilt || 1), 1); // 0..1
+    // Schlick approximation with configurable exponent
+    const f0 = 0.04;
+    return f0 + (1 - f0) * Math.pow(normAngle, S.frExp);
+  }
+
+  // ── RENDER: DIRECTIONAL DIFFUSE SHADOW (GLOBAL DARKNESS) ──
+  const DIFFUSE_TONES = {
+    navy:    [0, 10, 25],
+    neutral: [0, 0, 0],
+    warm:    [25, 12, 5]
+  };
+
+  function renderDiffuseShadow(nx, ny) {
+    if (!lDiffuse) return;
+    if (!S.diffuseOn || S.diffuseInt <= 0.001) {
+      lDiffuse.style.opacity = '0';
+      return;
+    }
+
+    // Direction opposite the light source (180 deg out of phase with specular)
+    const angle = (Math.atan2(ny, nx) * 180 / Math.PI + 90 + 360) % 360;
+    const rgb = DIFFUSE_TONES[S.diffuseTone] || DIFFUSE_TONES.navy;
+    const tone = `${rgb[0]},${rgb[1]},${rgb[2]}`;
+    const soft = S.diffuseSoft;
+
+    const grad = `linear-gradient(${angle.toFixed(1)}deg,
+      rgba(${tone}, 0.95) 0%,
+      rgba(${tone}, 0.5) ${Math.round(soft * 0.5)}%,
+      rgba(${tone}, 0.15) ${soft}%,
+      transparent ${Math.min(100, soft + 25)}%
+    )`;
+
+    lDiffuse.style.mixBlendMode = S.diffuseBlend;
+    lDiffuse.style.background = grad;
+
+    // Modulate shadow opacity with tilt/light distance
+    const mag = Math.min(1, Math.hypot(nx, ny) * 1.4 + 0.35);
+    lDiffuse.style.opacity = (S.diffuseInt * mag).toFixed(3);
+  }
+
+  // ── RENDER: SPECULAR HOTSPOT ──
+  // A soft radial blob that moves across the surface
+  // Position is the reflection of the light source: as you tilt left,
+  // the reflection moves right (mirror behavior)
+  function renderSpecular(nx, ny, fresnel) {
+    if (!S.specOn) { lSpec.style.opacity = 0; return; }
+
+    const colors = LIGHT_COLORS[S.specColor] || LIGHT_COLORS.warm;
+
+    // Reflected position — mirror the tilt
+    const rx = 50 - nx * S.specTravel;
+    const ry = 50 - ny * S.specTravel;
+
+    const size = S.specSize;
+    const fall = S.specFall;
+
+    // Multi-stop radial for realistic falloff:
+    // Bright core → warm edge → transparent
+    const mid1 = Math.round(size * fall * 0.3);
+    const mid2 = Math.round(size * fall * 0.7);
+
+    const coreR = colors.core[0], coreG = colors.core[1], coreB = colors.core[2];
+    const edgeR = colors.edge[0], edgeG = colors.edge[1], edgeB = colors.edge[2];
+
+    const grad = `radial-gradient(ellipse ${size}% ${size * 0.85}% at ${rx}% ${ry}%,
+      rgba(${coreR},${coreG},${coreB}, 0.95) 0%,
+      rgba(${coreR},${coreG},${coreB}, 0.7) ${mid1}%,
+      rgba(${edgeR},${edgeG},${edgeB}, 0.3) ${mid2}%,
+      rgba(${edgeR},${edgeG},${edgeB}, 0.05) ${size}%,
+      transparent ${size + 15}%
+    )`;
+
+    lSpec.style.mixBlendMode = S.specBlend;
+    lSpec.style.background = grad;
+    // Specular gets brighter with Fresnel at glancing angles
+    const baseOpacity = S.specInt;
+    const fresnelBoost = fresnel * 0.4;
+    lSpec.style.opacity = Math.min(1, baseOpacity + fresnelBoost);
+
+    roSX.textContent = `${rx.toFixed(0)}%`;
+    roSY.textContent = `${ry.toFixed(0)}%`;
+  }
+
+  // ── RENDER: FRESNEL RIM ──
+  // Edges of the sticker glow when viewed at shallow angles
+  // Uses an inset transparent → white gradient that shifts based on tilt direction
+  function renderFresnel(nx, ny, fresnel) {
+    if (!S.fresnelOn) { lFresnel.style.opacity = 0; return; }
+
+    // The rim should be brighter on the side the surface is tilting TOWARD
+    // (because that edge is at a more glancing angle)
+    const rimW = S.frWidth;
+
+    // Multiple edge gradients composited together
+    // Each edge has its own opacity based on how much the surface is tilting toward it
+    const leftWeight  = Math.max(0, -nx);  // tilting left → left edge bright
+    const rightWeight = Math.max(0,  nx);  // tilting right → right edge bright
+    const topWeight   = Math.max(0, -ny);
+    const botWeight   = Math.max(0,  ny);
+
+    const base = fresnel * S.frInt;
+    const lA = (base * (0.3 + leftWeight  * 0.7)).toFixed(3);
+    const rA = (base * (0.3 + rightWeight * 0.7)).toFixed(3);
+    const tA = (base * (0.3 + topWeight   * 0.7)).toFixed(3);
+    const bA = (base * (0.3 + botWeight   * 0.7)).toFixed(3);
+
+    const grad = `
+      linear-gradient(90deg,  rgba(255,255,255,${lA}) 0%, transparent ${rimW}%, transparent ${100-rimW}%, rgba(255,255,255,${rA}) 100%),
+      linear-gradient(180deg, rgba(255,255,255,${tA}) 0%, transparent ${rimW}%, transparent ${100-rimW}%, rgba(255,255,255,${bA}) 100%)
+    `;
+
+    lFresnel.style.background = grad;
+    lFresnel.style.opacity = 1;
+    roFr.textContent = fresnel.toFixed(2);
+  }
+
+  // ── RENDER: ENVIRONMENT REFLECTION ──
+  function renderEnvReflection(nx, ny) {
+    if (!S.envOn) { lEnv.style.opacity = 0; return; }
+
+    const preset = ENV_PRESETS[S.envPreset] || ENV_PRESETS.studio;
+    lEnv.style.background = preset(nx, ny);
+    lEnv.style.opacity = S.envInt;
+    lEnv.style.filter = S.envBlur > 0 ? `blur(${S.envBlur}px)` : 'none';
+  }
+
+  // ── RENDER: WASHOUT ──
+  // At steep angles, glossy vinyl surfaces appear more milky/white
+  function renderWashout(fresnel) {
+    if (!S.washOn) { lWash.style.opacity = 0; return; }
+    lWash.style.opacity = fresnel * S.washStr;
+  }
+
+  // ── RENDER: IRIDESCENCE ──
+  // Subtle rainbow color shift based on viewing angle
+  function renderIridescence(nx, ny, fresnel) {
+    if (!S.iridOn) { lIrid.style.opacity = 0; return; }
+
+    // Rotate hue based on tilt direction
+    const angle = Math.atan2(ny, nx) * (180 / Math.PI);
+    const hue1 = (angle + 180) % 360;
+    const hue2 = (hue1 + 60) % 360;
+    const hue3 = (hue1 + 180) % 360;
+
+    // Shift position based on tilt
+    const cx = 50 - nx * 30;
+    const cy = 50 - ny * 30;
+
+    lIrid.style.background = `
+      radial-gradient(ellipse 70% 70% at ${cx}% ${cy}%,
+        hsla(${hue1}, 100%, 70%, 0.3) 0%,
+        hsla(${hue2}, 80%, 60%, 0.15) 40%,
+        hsla(${hue3}, 70%, 50%, 0.05) 70%,
+        transparent 100%
+      )
+    `;
+    lIrid.style.opacity = fresnel * S.iridStr * 4;
+  }
+
+  // ── RENDER: SHADOW ──
+  function renderShadow(tiltX, tiltY) {
+    const offX = tiltX * 0.8;
+    const offY = Math.max(0, tiltY * 0.3 + 2);
+    const mag = Math.sqrt(tiltX * tiltX + tiltY * tiltY);
+    const spread = 65 + mag * 0.5;
+    shadow.style.transform = `translateX(calc(-50% + ${offX}px))`;
+    shadow.style.width = `${spread}%`;
+    shadow.style.opacity = Math.max(0.3, 0.7 - mag * 0.015);
+  }
+
+  // ── MAIN TICK ──
+  let rafId = null;
+  let lastTX = null, lastTY = null;
+  let lastNX = null, lastNY = null;
+  let forceRedraw = true;
+
+  function requestRedraw() {
+    forceRedraw = true;
+  }
+
+  function tick() {
+    rafId = requestAnimationFrame(tick);
+    S.frames++;
+
+    const now = performance.now();
+    if (now - S.fpsT >= 1000) {
+      S.fps = S.frames;
+      S.frames = 0;
+      S.fpsT = now;
+      pFps.textContent = `${S.fps} fps`;
+    }
+
+    // ── Idle animation ──
+    if (S.idleOn && S.activeIn === 'none') {
+      const t = now * 0.001 * S.idleSpd;
+      const amp = S.idleAmp;
+      // Lissajous-like pattern for organic movement
+      S.tgtNX = Math.sin(t * 0.7) * amp;
+      S.tgtNY = Math.sin(t * 0.5 + 1.2) * amp * 0.7;
+
+      if (S.idleTilt) {
+        S.tgtTX = S.tgtNX * S.maxTilt;
+        S.tgtTY = S.tgtNY * S.maxTilt;
+      }
+    }
+
+    // ── Smooth lerp ──
+    const sm = S.smooth;
+    S.curTX += (S.tgtTX - S.curTX) * sm;
+    S.curTY += (S.tgtTY - S.curTY) * sm;
+    S.curNX += (S.tgtNX - S.curNX) * sm;
+    S.curNY += (S.tgtNY - S.curNY) * sm;
+
+    // Clamp
+    let tx = Math.max(-S.maxTilt, Math.min(S.maxTilt, S.curTX));
+    let ty = Math.max(-S.maxTilt, Math.min(S.maxTilt, S.curTY));
+    if (S.lockX) tx = 0;
+    if (S.lockY) ty = 0;
+
+    let nx = Math.max(-1, Math.min(1, S.curNX));
+    let ny = Math.max(-1, Math.min(1, S.curNY));
+
+    // Skip redundant draws if nothing changed and no forced redraw
+    const rTX = Math.round(tx * 10) / 10;
+    const rTY = Math.round(ty * 10) / 10;
+    const rNX = Math.round(nx * 100) / 100;
+    const rNY = Math.round(ny * 100) / 100;
+    if (!forceRedraw && rTX === lastTX && rTY === lastTY && rNX === lastNX && rNY === lastNY) return;
+    forceRedraw = false;
+    lastTX = rTX;
+    lastTY = rTY;
+    lastNX = rNX;
+    lastNY = rNY;
+
+    S.draws++;
+    pDraw.textContent = `${S.draws} draws`;
+
+    // ── 3D transform ──
+    if (S.tiltOn) {
+      body3d.style.transform = `rotateY(${tx}deg) rotateX(${-ty}deg)`;
+    } else {
+      body3d.style.transform = 'none';
+    }
+
+    // ── Physics calculations ──
+    const fresnel = fresnelFactor(tx, ty, S.maxTilt);
+
+    // ── Render all layers ──
+    renderDiffuseShadow(nx, ny);
+    renderSpecular(nx, ny, fresnel);
+    renderFresnel(nx, ny, fresnel);
+    renderEnvReflection(nx, ny);
+    renderWashout(fresnel);
+    renderIridescence(nx, ny, fresnel);
+    renderShadow(tx, ty);
+
+    // ── Readouts ──
+    roTX.textContent = `${tx.toFixed(1)}°`;
+    roTY.textContent = `${ty.toFixed(1)}°`;
+  }
+
+  // ── MOUSE ──
+  vp.addEventListener('mousemove', (e) => {
+    if (S.inputSrc === 'gyro' || S.inputSrc === 'sim') return;
+
+    const r = vp.getBoundingClientRect();
+    const nx = ((e.clientX - r.left) / r.width - 0.5) * 2;
+    const ny = ((e.clientY - r.top) / r.height - 0.5) * 2;
+    const sens = S.mouseSens;
+
+    let tiltX = nx * S.maxTilt * S.multX * sens;
+    let tiltY = ny * S.maxTilt * S.multY * sens;
+    if (S.invX) tiltX *= -1;
+    if (S.invY) tiltY *= -1;
+
+    S.tgtTX = tiltX;
+    S.tgtTY = tiltY;
+    S.tgtNX = nx * sens;
+    S.tgtNY = ny * sens;
+
+    S.activeIn = 'mouse';
+    roSrc.textContent = 'Mouse';
+    inputTxt.textContent = 'Input: Mouse';
+    inputDot.className = 'dot on';
+  });
+
+  vp.addEventListener('mouseleave', () => {
+    if (S.inputSrc === 'gyro' || S.inputSrc === 'sim') return;
+    S.activeIn = 'none';
+    S.tgtTX = 0; S.tgtTY = 0;
+    S.tgtNX = 0; S.tgtNY = 0;
+    roSrc.textContent = 'Idle';
+  });
+
+  // ── GYROSCOPE ──
+  let gyroBeta = null, gyroGamma = null, gyroCal = false;
+
+  function onGyro(e) {
+    if (S.inputSrc === 'mouse' || S.inputSrc === 'sim') return;
+    if (e.beta === null || e.gamma === null) return;
+
+    if (!gyroCal) {
+      gyroBeta = e.beta;
+      gyroGamma = e.gamma;
+      gyroCal = true;
+    }
+
+    const sens = S.gyroSens;
+    let dg = (e.gamma - gyroGamma) * sens;
+    let db = (e.beta - gyroBeta) * sens;
+
+    let tiltX = (dg / 45) * S.maxTilt * S.multX;
+    let tiltY = (db / 45) * S.maxTilt * S.multY;
+    if (S.invX) tiltX *= -1;
+    if (S.invY) tiltY *= -1;
+
+    S.tgtTX = tiltX;
+    S.tgtTY = tiltY;
+    S.tgtNX = Math.max(-1, Math.min(1, dg / 45));
+    S.tgtNY = Math.max(-1, Math.min(1, db / 45));
+
+    S.activeIn = 'gyro';
+    roSrc.textContent = 'Gyro';
+    inputTxt.textContent = 'Input: Gyro';
+    inputDot.className = 'dot on';
+  }
+
+  async function initGyro() {
+    if (!('DeviceOrientationEvent' in window)) {
+      gyroDot.className = 'dot';
+      gyroTxt.textContent = 'Gyro: N/A';
+      return;
+    }
+
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try {
+        const p = await DeviceOrientationEvent.requestPermission();
+        if (p === 'granted') {
+          S.gyroOK = true;
+          S.gyroPerm = 'granted';
+          window.addEventListener('deviceorientation', onGyro);
+          gyroDot.className = 'dot on';
+          gyroTxt.textContent = 'Gyro: Active';
+        } else {
+          S.gyroPerm = 'denied';
+          gyroDot.className = 'dot warn';
+          gyroTxt.textContent = 'Gyro: Denied';
+        }
+      } catch (err) {
+        gyroDot.className = 'dot warn';
+        gyroTxt.textContent = 'Gyro: Error';
+      }
+    } else {
+      let fired = false;
+      const test = (e) => {
+        if (e.gamma !== null) { fired = true; S.gyroOK = true; gyroDot.className = 'dot on'; gyroTxt.textContent = 'Gyro: Active'; }
+        window.removeEventListener('deviceorientation', test);
+        if (fired) window.addEventListener('deviceorientation', onGyro);
+      };
+      window.addEventListener('deviceorientation', test);
+      setTimeout(() => {
+        if (!fired) { window.removeEventListener('deviceorientation', test); gyroDot.className = 'dot'; gyroTxt.textContent = 'Gyro: N/A'; }
+      }, 1500);
+    }
+  }
+
+  vp.addEventListener('click', () => {
+    if (S.gyroPerm === 'unknown' && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') initGyro();
+  });
+
+  // ── JOYSTICK ──
+  let joyDown = false;
+
+  function joyInput(cx, cy) {
+    if (!joyDown) return;
+    const r = joy.getBoundingClientRect();
+    const jcx = r.left + r.width / 2;
+    const jcy = r.top + r.height / 2;
+    let dx = cx - jcx, dy = cy - jcy;
+    const dist = Math.hypot(dx, dy);
+    const maxR = r.width / 2 - 14;
+    if (dist > maxR) { dx = (dx / dist) * maxR; dy = (dy / dist) * maxR; }
+
+    const nx = dx / maxR;
+    const ny = dy / maxR;
+
+    joyKnob.style.left = `calc(50% + ${dx}px)`;
+    joyKnob.style.top = `calc(50% + ${dy}px)`;
+
+    let tiltX = nx * S.maxTilt * S.multX;
+    let tiltY = ny * S.maxTilt * S.multY;
+    if (S.invX) tiltX *= -1;
+    if (S.invY) tiltY *= -1;
+
+    S.tgtTX = tiltX;
+    S.tgtTY = tiltY;
+    S.tgtNX = nx;
+    S.tgtNY = ny;
+    S.activeIn = 'sim';
+    roSrc.textContent = 'Joystick';
+    inputTxt.textContent = 'Input: Sim';
+  }
+
+  joy.addEventListener('pointerdown', (e) => {
+    if (S.inputSrc === 'mouse' || S.inputSrc === 'gyro') return;
+    joyDown = true;
+    e.preventDefault();
+    try { joy.setPointerCapture(e.pointerId); } catch(err) {}
+    joyInput(e.clientX, e.clientY);
+  });
+  window.addEventListener('pointermove', (e) => { if (joyDown) { e.preventDefault(); joyInput(e.clientX, e.clientY); } });
+  window.addEventListener('pointerup', () => {
+    if (joyDown) {
+      joyDown = false;
+      joyKnob.style.left = '50%';
+      joyKnob.style.top = '50%';
+      if (S.inputSrc === 'sim') { S.tgtTX = 0; S.tgtTY = 0; S.tgtNX = 0; S.tgtNY = 0; S.activeIn = 'none'; roSrc.textContent = 'Idle'; }
+    }
+  });
+
+  // ── CONTROLS ──
+  function bindTog(id, key) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('click', () => {
+      el.classList.toggle('on');
+      S[key] = el.classList.contains('on');
+
+      if (key === 'tiltOn' && !S.tiltOn) { S.tgtTX = 0; S.tgtTY = 0; }
+      if (key === 'showJoy') joy.classList.toggle('hidden', !S.showJoy);
+      requestRedraw();
+    });
+  }
+
+  bindTog('tTilt', 'tiltOn');
+  bindTog('tInvX', 'invX');
+  bindTog('tInvY', 'invY');
+  bindTog('tLockX', 'lockX');
+  bindTog('tLockY', 'lockY');
+  bindTog('tSpec', 'specOn');
+  bindTog('tDiffuse', 'diffuseOn');
+  bindTog('tFresnel', 'fresnelOn');
+  bindTog('tEnv', 'envOn');
+  bindTog('tWash', 'washOn');
+  bindTog('tIrid', 'iridOn');
+  bindTog('tJoy', 'showJoy');
+  bindTog('tIdle', 'idleOn');
+  bindTog('tIdleTilt', 'idleTilt');
+
+  // Backlight & Exposure Bindings
+  const BACKLIGHT_COLORS = {
+    cool:  'rgba(144, 196, 255, ',
+    white: 'rgba(255, 255, 255, ',
+    warm:  'rgba(255, 224, 178, ',
+    cyan:  'rgba(0, 229, 255, ',
+    neon:  'rgba(255, 42, 133, '
+  };
+
+  const backlightScreen = document.getElementById('backlightScreen');
+
+  function updateBacklightAndExposure() {
+    document.documentElement.style.setProperty('--sticker-bright', S.stickerBright);
+    document.documentElement.style.setProperty('--sticker-contrast', S.stickerContrast);
+    document.documentElement.style.setProperty('--sticker-sat', S.stickerSat);
+
+    if (!backlightScreen) return;
+    if (!S.backlightOn || S.backlightInt <= 0.001) {
+      backlightScreen.style.opacity = '0';
+      return;
+    }
+    backlightScreen.style.opacity = '1';
+    const baseColor = BACKLIGHT_COLORS[S.backlightColor] || BACKLIGHT_COLORS.cool;
+    const coreAlpha = (S.backlightInt * 0.75).toFixed(2);
+    const midAlpha = (S.backlightInt * 0.22).toFixed(2);
+    backlightScreen.style.background = `radial-gradient(ellipse at center, ${baseColor}${coreAlpha}) 0%, ${baseColor}${midAlpha}) 55%, transparent 78%)`;
+    backlightScreen.style.filter = `blur(${S.backlightBlur}px)`;
+  }
+
+  bindTog('tBacklight', 'backlightOn');
+  document.getElementById('tBacklight').addEventListener('click', updateBacklightAndExposure);
+
+  function bindRange(id, key, valId, fmt) {
+    const el = document.getElementById(id);
+    const d = document.getElementById(valId);
+    if (!el || !d) return;
+    el.addEventListener('input', () => {
+      S[key] = parseFloat(el.value);
+      d.textContent = fmt(S[key]);
+      if (key === 'persp') scene.style.perspective = S[key] + 'px';
+      requestRedraw();
+    });
+  }
+
+  bindRange('rStickerBright', 'stickerBright', 'vStickerBright', v => `${v.toFixed(2)}×`);
+  document.getElementById('rStickerBright').addEventListener('input', updateBacklightAndExposure);
+
+  bindRange('rStickerContrast', 'stickerContrast', 'vStickerContrast', v => `${v.toFixed(2)}×`);
+  document.getElementById('rStickerContrast').addEventListener('input', updateBacklightAndExposure);
+
+  bindRange('rStickerSat', 'stickerSat', 'vStickerSat', v => `${v.toFixed(2)}×`);
+  document.getElementById('rStickerSat').addEventListener('input', updateBacklightAndExposure);
+
+  bindRange('rBacklightInt', 'backlightInt', 'vBacklightInt', v => v.toFixed(2));
+  document.getElementById('rBacklightInt').addEventListener('input', updateBacklightAndExposure);
+
+  bindRange('rBacklightBlur', 'backlightBlur', 'vBacklightBlur', v => `${v}px`);
+  document.getElementById('rBacklightBlur').addEventListener('input', updateBacklightAndExposure);
+
+  document.getElementById('sBacklightColor').addEventListener('change', (e) => {
+    S.backlightColor = e.target.value;
+    updateBacklightAndExposure();
+  });
+
+  bindRange('rMaxTilt', 'maxTilt', 'vMaxTilt', v => `${v}°`);
+  bindRange('rMultX', 'multX', 'vMultX', v => `${v.toFixed(1)}×`);
+  bindRange('rMultY', 'multY', 'vMultY', v => `${v.toFixed(1)}×`);
+  bindRange('rSmooth', 'smooth', 'vSmooth', v => v.toFixed(2));
+  bindRange('rPersp', 'persp', 'vPersp', v => `${v}`);
+  bindRange('rSpecInt', 'specInt', 'vSpecInt', v => v.toFixed(2));
+  bindRange('rSpecSize', 'specSize', 'vSpecSize', v => `${v}`);
+  bindRange('rSpecFall', 'specFall', 'vSpecFall', v => v.toFixed(2));
+  bindRange('rSpecTravel', 'specTravel', 'vSpecTravel', v => `${v}`);
+  bindRange('rDiffuseInt', 'diffuseInt', 'vDiffuseInt', v => v.toFixed(2));
+  bindRange('rDiffuseSoft', 'diffuseSoft', 'vDiffuseSoft', v => `${v}%`);
+  bindRange('rFrInt', 'frInt', 'vFrInt', v => v.toFixed(2));
+  bindRange('rFrExp', 'frExp', 'vFrExp', v => v.toFixed(1));
+  bindRange('rFrWidth', 'frWidth', 'vFrWidth', v => `${v}`);
+  bindRange('rEnvInt', 'envInt', 'vEnvInt', v => v.toFixed(2));
+  bindRange('rEnvBlur', 'envBlur', 'vEnvBlur', v => `${v}`);
+  bindRange('rWashStr', 'washStr', 'vWashStr', v => v.toFixed(2));
+  bindRange('rIridStr', 'iridStr', 'vIridStr', v => v.toFixed(2));
+  bindRange('rGyroSens', 'gyroSens', 'vGyroSens', v => `${v.toFixed(1)}×`);
+  bindRange('rMouseSens', 'mouseSens', 'vMouseSens', v => `${v.toFixed(1)}×`);
+  bindRange('rIdleSpd', 'idleSpd', 'vIdleSpd', v => `${v.toFixed(1)}×`);
+  bindRange('rIdleAmp', 'idleAmp', 'vIdleAmp', v => v.toFixed(2));
+
+  document.getElementById('sSpecColor').addEventListener('change', (e) => { 
+    S.specColor = e.target.value; 
+    requestRedraw(); 
+  });
+  document.getElementById('sSpecBlend').addEventListener('change', (e) => { 
+    S.specBlend = e.target.value; 
+    lSpec.style.mixBlendMode = S.specBlend; 
+    requestRedraw(); 
+  });
+  document.getElementById('sDiffuseTone').addEventListener('change', (e) => { 
+    S.diffuseTone = e.target.value; 
+    requestRedraw(); 
+  });
+  document.getElementById('sDiffuseBlend').addEventListener('change', (e) => { 
+    S.diffuseBlend = e.target.value; 
+    if (lDiffuse) lDiffuse.style.mixBlendMode = S.diffuseBlend; 
+    requestRedraw(); 
+  });
+  document.getElementById('sEnvPreset').addEventListener('change', (e) => { 
+    S.envPreset = e.target.value; 
+    requestRedraw(); 
+  });
+  document.getElementById('sInput').addEventListener('change', (e) => {
+    S.inputSrc = e.target.value;
+    S.activeIn = 'none';
+    S.tgtTX = 0; S.tgtTY = 0; S.tgtNX = 0; S.tgtNY = 0;
+    gyroCal = false;
+    roSrc.textContent = 'Idle';
+    if (e.target.value === 'sim') { joy.classList.remove('hidden'); S.showJoy = true; document.getElementById('tJoy').classList.add('on'); }
+    requestRedraw();
+  });
+
+  document.getElementById('btnReset').addEventListener('click', () => { location.reload(); });
+  document.getElementById('btnExport').addEventListener('click', () => {
+    const cfg = {
+      tilt: { enabled: S.tiltOn, maxTilt: S.maxTilt, multX: S.multX, multY: S.multY, invX: S.invX, invY: S.invY, lockX: S.lockX, lockY: S.lockY, smoothing: S.smooth, perspective: S.persp },
+      specular: { enabled: S.specOn, intensity: S.specInt, size: S.specSize, falloff: S.specFall, travel: S.specTravel, color: S.specColor, blendMode: S.specBlend },
+      diffuseShadow: { enabled: S.diffuseOn, intensity: S.diffuseInt, softness: S.diffuseSoft, tone: S.diffuseTone, blendMode: S.diffuseBlend },
+      fresnel: { enabled: S.fresnelOn, intensity: S.frInt, exponent: S.frExp, rimWidth: S.frWidth },
+      environment: { enabled: S.envOn, intensity: S.envInt, blur: S.envBlur, preset: S.envPreset },
+      surface: { washout: S.washOn, washoutStrength: S.washStr, iridescence: S.iridOn, iridescenceStrength: S.iridStr },
+      backlight: {
+        enabled: S.backlightOn,
+        brightness: S.stickerBright,
+        contrast: S.stickerContrast,
+        saturation: S.stickerSat,
+        glowIntensity: S.backlightInt,
+        glowBlur: S.backlightBlur,
+        color: S.backlightColor
+      },
+      input: { source: S.inputSrc, gyroSensitivity: S.gyroSens, mouseSensitivity: S.mouseSens },
+      idle: { enabled: S.idleOn, speed: S.idleSpd, amplitude: S.idleAmp, tilt: S.idleTilt }
+    };
+    const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'sticker-gloss-config.json';
+    a.click();
+  });
+
+  // Viewport Background Presets
+  const BG_PRESETS = {
+    white: {
+      color: '#ffffff',
+      isLight: true,
+      grid: `repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(0,0,0,0.035) 59px, rgba(0,0,0,0.035) 60px),
+             repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(0,0,0,0.035) 59px, rgba(0,0,0,0.035) 60px)`
+    },
+    lightgray: {
+      color: '#f4f4f7',
+      isLight: true,
+      grid: `repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(0,0,0,0.04) 59px, rgba(0,0,0,0.04) 60px),
+             repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(0,0,0,0.04) 59px, rgba(0,0,0,0.04) 60px)`
+    },
+    dark: {
+      color: '#08080c',
+      isLight: false,
+      grid: `repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(255,255,255,0.012) 59px, rgba(255,255,255,0.012) 60px),
+             repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(255,255,255,0.012) 59px, rgba(255,255,255,0.012) 60px)`
+    },
+    charcoal: {
+      color: '#16161f',
+      isLight: false,
+      grid: `repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(255,255,255,0.02) 59px, rgba(255,255,255,0.02) 60px),
+             repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(255,255,255,0.02) 59px, rgba(255,255,255,0.02) 60px)`
+    }
+  };
+
+  function updateViewportBg() {
+    const preset = BG_PRESETS[S.bgPreset];
+    const bgColor = preset ? preset.color : S.customBgColor;
+    let isLight = false;
+
+    if (preset) {
+      isLight = preset.isLight;
+    } else {
+      const hex = (bgColor || '#ffffff').replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16) || 0;
+      const g = parseInt(hex.substr(2, 2), 16) || 0;
+      const b = parseInt(hex.substr(4, 2), 16) || 0;
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      isLight = luma > 128;
+    }
+
+    vp.style.setProperty('--vp-bg', bgColor);
+    if (preset) {
+      vp.style.setProperty('--vp-grid', preset.grid);
+    } else {
+      const gridColor = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.02)';
+      vp.style.setProperty('--vp-grid', `repeating-linear-gradient(0deg, transparent, transparent 59px, ${gridColor} 59px, ${gridColor} 60px),
+        repeating-linear-gradient(90deg, transparent, transparent 59px, ${gridColor} 59px, ${gridColor} 60px)`);
+    }
+
+    vp.style.setProperty('--vp-grid-opacity', S.gridLinesOn ? '1' : '0');
+    vp.classList.toggle('vp-light', isLight);
+  }
+
+  const sBgPreset = document.getElementById('sBgPreset');
+  const rowCustomColor = document.getElementById('rowCustomColor');
+  const pickerBg = document.getElementById('pickerBg');
+
+  if (sBgPreset) {
+    sBgPreset.addEventListener('change', (e) => {
+      S.bgPreset = e.target.value;
+      if (rowCustomColor) rowCustomColor.style.display = (e.target.value === 'custom') ? 'flex' : 'none';
+      updateViewportBg();
+    });
+  }
+
+  if (pickerBg) {
+    pickerBg.addEventListener('input', (e) => {
+      S.customBgColor = e.target.value;
+      updateViewportBg();
+    });
+  }
+
+  bindTog('tGridLines', 'gridLinesOn');
+  const tGridLinesEl = document.getElementById('tGridLines');
+  if (tGridLinesEl) tGridLinesEl.addEventListener('click', updateViewportBg);
+
+  const btnKill = document.getElementById('btnKill');
+  if (btnKill) {
+    btnKill.addEventListener('click', () => {
+      S.tiltOn = false;
+      S.tgtTX = 0; S.tgtTY = 0; S.tgtNX = 0; S.tgtNY = 0;
+      const tTilt = document.getElementById('tTilt');
+      if (tTilt) tTilt.classList.remove('on');
+    });
+  }
+
+  // ── INIT ──
+  scene.style.perspective = S.persp + 'px';
+  updateViewportBg();
+  updateBacklightAndExposure();
+  initGyro();
+  rafId = requestAnimationFrame(tick);
+
+})();
+</script>
+
+</body>
+</html>

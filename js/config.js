@@ -452,7 +452,7 @@ const stickerProps = {
   },
   shadow: { enabled: false },
 
-  // PBR Gloss & Specular Sheen (Derived from sticker-gloss-config (1).json)
+  // PBR Gloss & Specular Sheen (Derived from sticker-gloss-config (4).json)
   gloss: {
     tilt: {
       enabled: false,
@@ -464,30 +464,40 @@ const stickerProps = {
       lockX: false,
       lockY: false,
       smoothing: 0.1,
-      perspective: 900
+      perspective: 875
     },
+    // Specular Hotspot Light Source
     specular: {
       enabled: true,
-      intensity: 0.29,
-      size: 80,
+      intensity: 0.7,
+      size: 70,
       falloff: 1,
-      travel: 39,
-      color: "golden"
+      travel: 44,
+      color: "golden",
+      blendMode: "overlay" // Blend Mode control: 'overlay', 'screen', 'color-dodge', 'soft-light'
+    },
+    // Directional Shading (Global Ambient Shadow opposite light source)
+    diffuseShadow: {
+      enabled: true,
+      intensity: 0.6,
+      softness: 30,
+      tone: "navy",        // 'navy' (rgb 0,10,25), 'neutral' (black), 'warm' (umber)
+      blendMode: "multiply" // Blend Mode control: 'overlay', 'multiply', 'darken'
     },
     fresnel: {
       enabled: true,
-      intensity: 0.62,
-      exponent: 6.4,
+      intensity: 0.11,
+      exponent: 8,
       rimWidth: 50
     },
     environment: {
       enabled: true,
-      intensity: 0.25,
-      blur: 12,
+      intensity: 0.57,
+      blur: 19,
       preset: "studio"
     },
     surface: {
-      washout: true,
+      washout: false,
       washoutStrength: 0.1,
       iridescence: false,
       iridescenceStrength: 0.08
@@ -504,7 +514,7 @@ const stickerProps = {
     input: {
       source: "auto",
       gyroSensitivity: 1.5,
-      mouseSensitivity: 0
+      mouseSensitivity: 0 // Mouse sensitivity kept at 0 per user instruction
     },
     idle: {
       enabled: true,
@@ -517,10 +527,10 @@ const stickerProps = {
     worldLight: {
       enabled: true,
       x: 0.5,        // Light source X (0.5 = centered horizontally)
-      y: 0.5,        // Light source Y (configured by user)
+      y: -0.2,        // Light source Y (configured by user)
       z: 1.2,        // Light source Z (1.2 = in front of screen, near/above person)
-      viewerZ: 1.2,  // Viewer distance in front of screen
-      travel: 39,    // Highlight displacement travel factor (synced to specular.travel)
+      viewerZ: 1.7,  // Viewer distance in front of screen
+      travel: 44,    // Highlight displacement travel factor (synced to specular.travel)
       glintStrength: 0.8 // Flare intensity when surface normal aligns with light reflection
     }
   },

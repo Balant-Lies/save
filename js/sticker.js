@@ -27,30 +27,38 @@
       lockX: false,
       lockY: false,
       smoothing: 0.1,
-      perspective: 900
+      perspective: 875
     },
     specular: {
       enabled: true,
-      intensity: 0.29,
+      intensity: 0.52,
       size: 80,
       falloff: 1,
-      travel: 39,
-      color: "golden"
+      travel: 44,
+      color: "golden",
+      blendMode: "overlay"
+    },
+    diffuseShadow: {
+      enabled: true,
+      intensity: 0.41,
+      softness: 62,
+      tone: "navy",
+      blendMode: "overlay"
     },
     fresnel: {
       enabled: true,
-      intensity: 0.62,
-      exponent: 6.4,
+      intensity: 0.11,
+      exponent: 8,
       rimWidth: 50
     },
     environment: {
       enabled: true,
-      intensity: 0.25,
-      blur: 12,
+      intensity: 0.57,
+      blur: 19,
       preset: "studio"
     },
     surface: {
-      washout: true,
+      washout: false,
       washoutStrength: 0.1,
       iridescence: false,
       iridescenceStrength: 0.08
@@ -81,7 +89,7 @@
       y: 0.5,
       z: 1.2,
       viewerZ: 1.2,
-      travel: 39,
+      travel: 44,
       glintStrength: 0.8
     }
   };
@@ -91,6 +99,7 @@
     enabled: rawGloss.enabled !== false,
     tilt: Object.assign({}, defaultGloss.tilt, rawGloss.tilt || {}),
     specular: Object.assign({}, defaultGloss.specular, rawGloss.specular || {}),
+    diffuseShadow: Object.assign({}, defaultGloss.diffuseShadow, rawGloss.diffuseShadow || {}),
     fresnel: Object.assign({}, defaultGloss.fresnel, rawGloss.fresnel || {}),
     environment: Object.assign({}, defaultGloss.environment, rawGloss.environment || {}),
     surface: Object.assign({}, defaultGloss.surface, rawGloss.surface || {}),
@@ -193,6 +202,40 @@
     return f0 + (1 - f0) * Math.pow(normAngle, frExp || 3);
   }
 
+  // Directional diffuse shadow tone color definitions
+  const DIFFUSE_TONES = {
+    navy:    [0, 10, 25],
+    neutral: [0, 0, 0],
+    warm:    [25, 12, 5]
+  };
+
+  function renderDiffuseShadow(el, nx, ny, cfg) {
+    if (!el) return;
+    if (!cfg || cfg.enabled === false || (cfg.intensity != null && cfg.intensity <= 0.001)) {
+      el.style.opacity = '0';
+      return;
+    }
+
+    // Direction opposite the light source (180 deg out of phase with specular)
+    const angle = (Math.atan2(ny, nx) * 180 / Math.PI + 90 + 360) % 360;
+    const rgb = DIFFUSE_TONES[cfg.tone] || DIFFUSE_TONES.navy;
+    const tone = `${rgb[0]},${rgb[1]},${rgb[2]}`;
+    const soft = cfg.softness != null ? cfg.softness : 62;
+
+    el.style.background = `linear-gradient(${angle.toFixed(1)}deg,
+      rgba(${tone}, 0.95) 0%,
+      rgba(${tone}, 0.5) ${Math.round(soft * 0.5)}%,
+      rgba(${tone}, 0.15) ${soft}%,
+      transparent ${Math.min(100, soft + 25)}%
+    )`;
+
+    el.style.mixBlendMode = cfg.blendMode || 'overlay';
+
+    const mag = Math.min(1, Math.hypot(nx, ny) * 1.4 + 0.35);
+    const baseIntensity = cfg.intensity != null ? cfg.intensity : 0.41;
+    el.style.opacity = (baseIntensity * mag).toFixed(3);
+  }
+
   function renderSpecular(el, nx, ny, fresnel, cfg, glint) {
     if (!el) return;
     if (!cfg || cfg.enabled === false) { el.style.opacity = '0'; return; }
@@ -218,6 +261,8 @@
       rgba(${edge[0]},${edge[1]},${edge[2]}, 0.05) ${size}%,
       transparent ${size + 15}%
     )`;
+
+    el.style.mixBlendMode = cfg.blendMode || 'overlay';
 
     const baseIntensity = cfg.intensity != null ? cfg.intensity : 0.28;
     const gFactor = glint != null ? glint : 0.5;
@@ -384,6 +429,7 @@
 
       // PBR Gloss Sub-Layers
       this.highlightLayer = rootEl.querySelector('.sticker-highlight-layer');
+      this.lDiffuse = rootEl.querySelector('.diffuse-shadow');
       this.lSpecular = rootEl.querySelector('.specular-hotspot');
       this.lFresnel = rootEl.querySelector('.fresnel-rim');
       this.lEnv = rootEl.querySelector('.env-reflect');
@@ -636,6 +682,7 @@
       const fresnel = fresnelFactor(tx, ty, maxTilt, frExp);
 
       // Render PBR sub-layers (Notice: NO 3D transform is ever applied to rootEl or bodyEl!)
+      if (this.lDiffuse) renderDiffuseShadow(this.lDiffuse, nx, ny, cfg.diffuseShadow);
       if (this.lSpecular) renderSpecular(this.lSpecular, nx, ny, fresnel, cfg.specular, this.curGlint);
       if (this.lFresnel) renderFresnel(this.lFresnel, nx, ny, fresnel, cfg.fresnel);
       if (this.lEnv) renderEnvReflection(this.lEnv, nx, ny, cfg.environment);
